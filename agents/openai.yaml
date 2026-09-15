@@ -1,0 +1,4 @@
+interface:
+  display_name: "Physics Question Bank"
+  short_description: "Traceable physics question bank builder"
+  default_prompt: "Build a physics question bank from the provided sources, including a reviewed asset manifest for every required diagram."
