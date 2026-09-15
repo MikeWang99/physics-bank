@@ -51,4 +51,4 @@ Read [the asset-manifest reference](references/asset-manifest.md) before creatin
 
 ## Dependencies and portability
 
-This Skill is self-contained except for Python packages listed in `requirements.txt`. Before first use on a new computer, install them into an isolated Python environment, then copy this whole `physics-question-bank` folder into that computer's `~/.codex/skills/`. The crop utility derives from Microsoft ResearchStudio's MIT-licensed implementation; see [third-party notices](references/THIRD_PARTY_LICENSES.md).
+This Skill is self-contained except for Python packages listed in `requirements.txt`. Before first use on a new computer, install them into an isolated Python environment, then copy this whole `physics-bank` folder into that computer's `~/.codex/skills/`. The crop utility derives from Microsoft ResearchStudio's MIT-licensed implementation; see [third-party notices](references/THIRD_PARTY_LICENSES.md).
