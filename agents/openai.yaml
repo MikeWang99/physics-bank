@@ -1,4 +1,4 @@
 interface:
-  display_name: "Physics Question Bank"
-  short_description: "Traceable physics question bank builder"
-  default_prompt: "Build a physics question bank from the provided sources, including a reviewed asset manifest for every required diagram."
+  display_name: "物理题库"
+  short_description: "生成可追溯的物理题库"
+  default_prompt: "Use $physics-bank to build a traceable physics question bank from the provided sources, including reviewed assets for every required diagram."

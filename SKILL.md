@@ -1,9 +1,9 @@
 ---
-name: physics-question-bank
+name: physics-bank
 description: Build traceable physics question banks from exam PDFs or local source packs, with question-level metadata and visually reviewed, high-resolution diagram assets. Use for extracting, organizing, adapting, or publishing physics question banks; not for a one-off worksheet with no reusable bank.
 ---
 
-# Physics Question Bank
+# Physics Bank · 物理题库
 
 Build a reusable question bank, not a pile of copied page screenshots. Every question must retain its source provenance, answer, knowledge-point tags, and an asset record for every diagram it needs.
 
