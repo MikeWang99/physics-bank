@@ -1,9 +1,9 @@
 ---
-name: physics-question-bank
+name: physics-bank
 description: Build traceable physics question banks from exam PDFs or local source packs, with question-level metadata and visually reviewed, high-resolution diagram assets. Use for extracting, organizing, adapting, or publishing physics question banks; not for a one-off worksheet with no reusable bank.
 ---
 
-# Physics Question Bank
+# Physics Bank
 
 Build a reusable question bank, not a pile of copied page screenshots. Every question must retain source provenance, knowledge-point tags, an answer-status field, and an asset record for every diagram it needs.
 
@@ -53,4 +53,4 @@ Read [the asset-manifest reference](references/asset-manifest.md) before creatin
 
 ## Dependencies and portability
 
-This Skill is self-contained except for Python packages listed in `requirements.txt`. Before first use on a new computer, install them into an isolated Python environment, then copy this whole `physics-question-bank` folder into that computer's `~/.codex/skills/`. The crop utility derives from Microsoft ResearchStudio's MIT-licensed implementation; see [third-party notices](references/THIRD_PARTY_LICENSES.md).
+This Skill is self-contained except for Python packages listed in `requirements.txt`. Before first use on a new computer, install them into an isolated Python environment, then copy this whole `physics-bank` folder into that computer's `~/.codex/skills/`. The crop utility derives from Microsoft ResearchStudio's MIT-licensed implementation; see [third-party notices](references/THIRD_PARTY_LICENSES.md).
