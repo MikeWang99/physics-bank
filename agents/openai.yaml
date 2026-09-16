@@ -1,4 +1,4 @@
 interface:
   display_name: "物理题库"
   short_description: "稳定提取、核验并生成可追溯物理题库"
-  default_prompt: "Use $physics-bank v2 end-to-end. Always run deterministic Stage A text extraction first, resolve review flags, perform final visual QA on every kept asset, run the strict validator, and only then deliver the bank. Never silently omit or reconstruct source text."
+  default_prompt: "Use $physics-bank v2 end-to-end. Always run deterministic Stage A text extraction first, stamp and verify the canonical exam year on every question, resolve review flags, perform final visual QA on every kept asset, run both strict validators, and only then deliver the bank. Never silently omit or reconstruct source text or source-year metadata."
