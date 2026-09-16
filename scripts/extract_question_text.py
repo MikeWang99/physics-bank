@@ -27,6 +27,10 @@ SHARED_RE = re.compile(
     r"\bquestions?\s+(?P<a>\d{1,3})\s*(?:-|–|—|to|and|&)\s*(?P<b>\d{1,3})\b",
     re.I,
 )
+SHARED_SIGNAL_RE = re.compile(
+    r"\b(?:refer|following|information|diagram|figure|graph|table|passage|data)\b",
+    re.I,
+)
 
 
 @dataclass
@@ -155,10 +159,19 @@ def extract(pdf: Path, id_prefix: str) -> dict:
         current = None
 
     for line in flat:
+        # A shared-stimulus heading can appear between numbered questions. Treat
+        # it as pre-question context rather than appending it to the previous
+        # question, otherwise questions 5-6 style prompts get swallowed by q4.
+        if SHARED_RE.search(line.text) and SHARED_SIGNAL_RE.search(line.text):
+            finish_current()
+            preamble.append(line)
+            continue
+
         anchor = question_anchor(line.text)
         if anchor:
             finish_current()
             num, rest = anchor
+            # Treat accumulated pre-question text as a potential shared stimulus.
             if preamble:
                 pre_text = "\n".join(item.text for item in preamble).strip()
                 shared_match = SHARED_RE.search(pre_text)
@@ -202,6 +215,7 @@ def extract(pdf: Path, id_prefix: str) -> dict:
 
     finish_current()
 
+    # Attach shared contexts by source question number.
     by_number = {q["original_number"]: q for q in questions}
     for shared in shared_contexts:
         for num in shared["owners_original_numbers"]:
