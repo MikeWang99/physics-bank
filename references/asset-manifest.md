@@ -1,19 +1,25 @@
-# Question-bank asset manifest
+# Question-bank schema and asset manifest · v2
 
-Use a stable question manifest plus an asset manifest. Paths are relative to the bundle root.
+Paths are relative to the bundle root. The v2 schema keeps text provenance and visual provenance explicit.
 
 ```json
 {
+  "schema_version": "2.0",
   "questions": [
     {
-      "id": "fma-2009-q05",
+      "id": "fma-2009-q005",
       "source": {"file": "assets/source/2009_Fma_exam.pdf", "page": 3, "original_number": "5"},
+      "source_pages": [3, 4],
       "content_format": "markdown+latex",
+      "context": "Shared setup copied here so the question is self-contained.",
       "stem": "A charge moves through a potential difference $V$.",
       "choices": [{"label": "A", "text": "..."}],
       "answer": {"text": null, "label": null, "evidence": "not-provided"},
-      "knowledge_points": ["circular motion", "angular momentum"],
-      "asset_ids": ["fma-2009-p03-stem-01"]
+      "knowledge_points": ["electric potential"],
+      "asset_ids": ["fma-2009-p003-stem-01"],
+      "extraction": {"method": "pdf-text-layer", "text_reviewed": true, "confidence": 0.98},
+      "requires_manual_review": false,
+      "review_reasons": []
     }
   ]
 }
@@ -21,26 +27,21 @@ Use a stable question manifest plus an asset manifest. Paths are relative to the
 
 ```json
 {
+  "schema_version": "2.0",
   "assets": [
     {
-      "id": "fma-2009-p03-stem-01",
-      "file": "assets/figures/fma-2009-p03-stem-01.png",
+      "id": "fma-2009-p003-stem-01",
+      "file": "assets/figures/fma-2009-p003-stem-01.png",
       "source": {"file": "assets/source/2009_Fma_exam.pdf", "page": 3},
       "role": "stem",
-      "owners": ["fma-2009-q05"],
-      "crop": {"render_zoom": 6, "method": "box+autotrim", "reviewed": true},
-      "notes": "Orbit labels A, B, C retained; question prose excluded."
+      "owners": ["fma-2009-q005"],
+      "reviewed": true,
+      "crop": {"render_zoom": 6, "method": "box+autotrim", "reviewed": true}
     }
   ]
 }
 ```
 
-Valid `role` values are `stem`, `choice`, and `shared`. A choice asset also contains `choice_label`. A `shared` asset lists all question IDs in `owners`.
+Valid asset roles: `stem`, `choice`, `shared`. A choice asset **must** contain `choice_label`; a shared asset lists all owners. `reviewed: true` means the final file itself was visually inspected after the last crop/modification, not merely that a candidate was previewed earlier.
 
-## Answer and mathematical-content rules
-
-Always retain an `answer` object. If an official or user-supplied answer exists, populate `text` and/or `label` and identify its evidence. Otherwise use `{"text": null, "label": null, "evidence": "not-provided"}`. Do not generate an independent solution merely to populate the field.
-
-Set `content_format` to `markdown+latex`. Store inline mathematics as `$...$` and display mathematics as `$$...$$`; do not rely on Unicode superscripts, plain-text approximations, or renderer-specific HTML as the canonical mathematical source. JSON alone does not render LaTeX: downstream viewers and PDF generators must apply a Markdown renderer with MathJax, KaTeX, or equivalent support.
-
-Do not store absolute paths, raw page screenshots, or unreviewed candidates as final assets. The delivered bundle contains only source papers, final figures, and manifests; discovery output and `_debug/` crop history remain temporary unless an audit package is explicitly requested.
+Always retain an `answer` object. Only populate answers from official/user-supplied evidence unless the user explicitly requests solutions. Mathematical source remains Markdown+LaTeX. Downstream renderers must either support the encountered LaTeX subset or fail explicitly; silently dropping commands is not acceptable.
