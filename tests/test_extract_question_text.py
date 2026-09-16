@@ -45,6 +45,25 @@ class ExtractTests(unittest.TestCase):
             self.assertIn("continues question 1", q1["stem"])
             self.assertEqual([c["label"] for c in q2["choices"]], ["A", "B", "C", "D"])
 
+    def test_shared_context_between_questions_is_not_swallowed_by_previous_question(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf = Path(tmp) / "exam.pdf"
+            make_pdf(pdf, [[
+                "4. What is the acceleration?",
+                "A. 1 m/s^2", "B. 2 m/s^2",
+                "Questions 5 and 6 refer to the following diagram and information.",
+                "A cart collides with a stationary cart.",
+                "5. What is the total momentum?",
+                "6. Is kinetic energy conserved?",
+            ]])
+            result = MOD.extract(pdf, "exam")
+            self.assertEqual(result["question_count"], 3)
+            q4, q5, q6 = result["questions"]
+            self.assertNotIn("Questions 5 and 6", q4["raw_source_text"])
+            self.assertIn("Questions 5 and 6", q5["context"])
+            self.assertIn("A cart collides", q5["context"])
+            self.assertEqual(q5["context"], q6["context"])
+
     def test_question_number_variants(self):
         self.assertEqual(MOD.question_anchor("Question 12: Find the speed")[0], "12")
         self.assertEqual(MOD.question_anchor("Q7. Select one")[0], "7")
