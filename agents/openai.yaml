@@ -1,4 +1,4 @@
 interface:
   display_name: "物理题库"
   short_description: "稳定提取、核验并生成可追溯物理题库"
-  default_prompt: "Use $physics-bank v2 end-to-end. Always run deterministic Stage A text extraction first, stamp and verify the canonical exam year on every question, resolve review flags, perform final visual QA on every kept asset, run both strict validators, and only then deliver the bank. Never silently omit or reconstruct source text or source-year metadata."
+  default_prompt: "Use $physics-bank v2 end-to-end. Always run deterministic Stage A text extraction first, stamp and verify the canonical exam year, resolve review flags, and visually QA every final asset. If options contain images, crop every semantic option independently, store it under assets/choices/<question-id>/, bind it through choices[].asset_ids, then run the choice organizer and strict validators. Never publish a combined multi-option image as a final choice asset."
