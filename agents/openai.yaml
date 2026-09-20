@@ -1,4 +1,7 @@
 interface:
   display_name: "物理题库"
-  short_description: "稳定提取、核验并生成可追溯物理题库"
-  default_prompt: "Use $physics-bank v2 end-to-end. Always run deterministic Stage A text extraction first, stamp and verify the canonical exam year, resolve review flags, and visually QA every final asset. If options contain images, crop every semantic option independently, store it under assets/choices/<question-id>/, bind it through choices[].asset_ids, then run the choice organizer and strict validators. Never publish a combined multi-option image as a final choice asset."
+  short_description: "稳定提取、核验并保存图文叙事顺序的物理题库"
+  default_prompt: "Use $physics-bank v2.3 end-to-end. Always run deterministic Stage A extraction first, verify exam year and source text, visually QA every final asset, record source.page + source.bbox for stem/shared figures, reconstruct the original text/figure order in question.layout_blocks with source_anchor values, visually review that layout, then run strict validation. Visual answer choices still use isolated choices[].asset_ids. Never let a downstream PDF renderer guess image placement."
+
+policy:
+  allow_implicit_invocation: true
