@@ -1,9 +1,9 @@
 ---
 name: physics-bank
-description: Build source-faithful, validated physics question banks from exam PDFs, with deterministic text extraction, explicit review gates, traceable source pages, exam-year metadata, and separately reviewed stem/choice visual assets.
+description: Build source-faithful, validated physics question banks from exam PDFs, preserving deterministic text provenance, exam-year metadata, independently reviewed visual assets, and the original narrative placement of every stem/shared figure.
 ---
 
-# Physics Bank v2
+# Physics Bank v2.3
 
 Build a reusable, auditable question bank. The governing rule is **source fidelity first**: the model may enrich metadata, but it must not silently repair, shorten, paraphrase, merge, or guess source text, source metadata, or visual option content.
 
@@ -20,7 +20,7 @@ Create a `question-bank/` bundle containing:
 
 Every published question must contain a canonical four-digit `year` and a matching `year:YYYY` tag.
 
-Read `references/text-extraction.md`, `references/asset-manifest.md`, and `references/choice-assets.md` before execution.
+Read `references/text-extraction.md`, `references/asset-manifest.md`, `references/choice-assets.md`, and `references/narrative-layout.md` before execution.
 
 ## Stage A — faithful extraction (mandatory; do not skip)
 
@@ -45,7 +45,8 @@ Read `references/text-extraction.md`, `references/asset-manifest.md`, and `refer
 
 4. Inspect `question_drafts.json` and the rendered/source pages. Resolve every `requires_manual_review` item. If a PDF is scan-only or the text layer is corrupted, visually transcribe from the page image; record the method and keep the raw draft for comparison.
 5. Preserve `raw_source_text`, `source_pages`, original numbering, choices, shared context, and year metadata. Shared textual setup must be copied into each final question's `context` so every question is self-contained.
-6. Only after visual/text comparison set `extraction.text_reviewed: true`.
+6. Preserve source geometry. `raw_pages.json` line bboxes are evidence for reading order; every final stem/shared asset must later record its source `page` and semantic PDF-point `bbox`.
+7. Only after visual/text comparison set `extraction.text_reviewed: true`.
 
 Never infer omitted clauses from physics knowledge. If a symbol, sentence, or exam year cannot be established confidently from source evidence, keep the question in manual review instead of completing it from memory.
 
@@ -67,9 +68,11 @@ Stage B may normalize whitespace and mathematical notation but must preserve mea
    ```
 
 2. Determine ownership only after question boundaries exist. Classify stem-level assets as `stem` or `shared` and publish them under `assets/figures/`.
-3. For each crop, use `blocks → mark → preview → visual inspection → box/autotrim` as needed.
-4. Open the **final file after the last modification**. Verify labels, axes, arrowheads, endpoints, dimensions, scale information, and that no neighboring prose/answer/footer leaked in.
-5. Set `reviewed: true` only after that final inspection.
+3. Before post-processing the raster, record the semantic source region in `assets.json -> source.page + source.bbox`. This is source provenance and must not be replaced by a later PNG pixel crop.
+4. For each crop, use `blocks → mark → preview → visual inspection → box/autotrim` as needed.
+5. Open the **final file after the last modification**. Verify labels, axes, arrowheads, endpoints, dimensions, scale information, and that no neighboring prose/answer/footer leaked in.
+6. Reconstruct the original text/figure reading order in `question.layout_blocks`. Every figure block must carry a `source_anchor`; every stem/shared asset must appear exactly once.
+7. Compare the reconstructed order against the rendered source page. Only then set both `reviewed: true` on the asset and `layout_review.reviewed: true` on the question.
 
 ### Visual choice pipeline — mandatory when any option contains an image
 
@@ -126,6 +129,29 @@ A diagram shared by all choices is **not** a choice asset; store it as `stem`/`s
 
 A detection script finding no candidates is not evidence that no diagram exists. Scan relevant question/choice regions visually, especially for full-page raster/scanned PDFs.
 
+## Narrative layout gate — mandatory in v2.3
+
+The bank must preserve **where** each stem/shared visual occurs, not merely that it belongs to the question.
+
+For any question with one or more `stem` / `shared` assets:
+
+1. Record each asset's physical source location in `assets.json`:
+   - `source.file`
+   - `source.page`
+   - `source.bbox: [x0, y0, x1, y1]`
+2. Build ordered `question.layout_blocks` using only source-faithful `text` and `figure` blocks.
+3. Ensure the concatenated text blocks preserve all of `context + stem`; do not omit prose merely because a figure interrupts it.
+4. Give every figure block a `source_anchor`:
+   - `question_start` / `question_end`, or
+   - `before` / `after` with a short exact source phrase.
+5. Set `question.layout_review = {"reviewed": true, "method": "..."}` only after visual comparison with the source page.
+
+`choices[].asset_ids` remains the placement mechanism for visual answer choices; choice images do not belong in narrative `layout_blocks`.
+
+Do not rely on downstream PDF generation to infer layout. `homework-pdf` already consumes `layout_blocks` as authoritative order, so the question bank must supply them correctly.
+
+
+
 ## Final hard gate
 
 Run all validators:
@@ -141,7 +167,7 @@ python "$SKILL_DIR/scripts/validate_year_metadata.py" \
   --report question-bank/year-validation-report.json
 ```
 
-Do not present a bank as complete if validation fails. In v2.2 strict validation also rejects visual choice assets that are combined, unreviewed, incorrectly bound, duplicated, shared across questions, or stored outside their canonical choice folder.
+Do not present a bank as complete if validation fails. In v2.3 strict validation additionally rejects stem/shared visuals without source bboxes, missing/incomplete narrative layout blocks, unreviewed layouts, duplicate/missing figure placement, invalid anchors, or layout text that no longer covers the complete context + stem.
 
 ## Stability rules
 
@@ -155,4 +181,6 @@ Do not present a bank as complete if validation fails. In v2.2 strict validation
 - **Never place final choice images in `assets/figures/`; use `assets/choices/<question-id>/`.**
 - **Never bind one choice asset to multiple questions.**
 - Never publish unresolved asset IDs, orphan assets, duplicate IDs, or unreviewed text.
-- Re-running on the same PDF should preserve stable IDs, source boundaries, year metadata, and choice-asset slots unless human review intentionally corrects them.
+- Never publish a stem/shared visual without explicit source geometry and narrative placement.
+- Never let a downstream renderer guess whether a figure belongs before or after a sentence.
+- Re-running on the same PDF should preserve stable IDs, source boundaries, year metadata, choice-asset slots, source bboxes, and reviewed layout order unless human review intentionally corrects them.
