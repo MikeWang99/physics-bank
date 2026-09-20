@@ -1,4 +1,4 @@
-# Question-bank schema and asset manifest · v2.2
+# Question-bank schema and asset manifest · v2.3
 
 Paths are relative to the bundle root. The schema keeps text provenance, source year, visual provenance, and visual-choice ownership explicit.
 
@@ -26,6 +26,8 @@ Paths are relative to the bundle root. The schema keeps text provenance, source 
         "fma-2016-q005-choice-A-01",
         "fma-2016-q005-choice-B-01"
       ],
+      "layout_blocks": [],
+      "layout_review": null,
       "extraction": {"method": "pdf-text-layer", "text_reviewed": true, "confidence": 0.98},
       "requires_manual_review": false,
       "review_reasons": []
@@ -46,7 +48,11 @@ Stem/shared figure:
 {
   "id": "fma-2016-q005-stem-01",
   "file": "assets/figures/fma-2016-q005-stem-01.png",
-  "source": {"file": "assets/source/2016_Fma_exam.pdf", "page": 3},
+  "source": {
+    "file": "assets/source/2016_Fma_exam.pdf",
+    "page": 3,
+    "bbox": [96.2, 188.4, 402.6, 331.8]
+  },
   "role": "stem",
   "owners": ["fma-2016-q005"],
   "reviewed": true,
@@ -60,7 +66,11 @@ Choice figure:
 {
   "id": "fma-2016-q005-choice-A-01",
   "file": "assets/choices/fma-2016-q005/A-01.png",
-  "source": {"file": "assets/source/2016_Fma_exam.pdf", "page": 3},
+  "source": {
+    "file": "assets/source/2016_Fma_exam.pdf",
+    "page": 3,
+    "bbox": [101.0, 355.2, 205.4, 436.8]
+  },
   "role": "choice",
   "choice_label": "A",
   "choice_index": 1,
@@ -91,3 +101,26 @@ Choice figure:
 Valid asset roles remain `stem`, `choice`, `shared`. `reviewed: true` means the final file itself was visually inspected after the last modification.
 
 Always retain an `answer` object. Only populate answers from official/user-supplied evidence unless the user explicitly requests solutions. Mathematical source remains Markdown+LaTeX.
+
+
+## Visual provenance position
+
+For every final visual asset, record its source page. For `stem` and `shared` assets, v2.3 strict validation also requires:
+
+```json
+"source": {
+  "file": "assets/source/source.pdf",
+  "page": 12,
+  "bbox": [x0, y0, x1, y1]
+}
+```
+
+`bbox` is the semantic source region in PDF points, not a later post-autotrim pixel box.
+
+## Narrative placement
+
+`question.asset_ids` means ownership, not presentation order.
+
+For every question with a `stem` or `shared` visual, add explicit `question.layout_blocks` and `question.layout_review`. The exact contract is in `references/narrative-layout.md`.
+
+Choice visuals remain bound through `choices[].asset_ids`; they are not inserted into narrative `layout_blocks`.
