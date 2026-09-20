@@ -235,6 +235,8 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
                     page = source_meta.get("page")
                     if not isinstance(page, int) or page < 1:
                         errors.append(f"{asset_id}: source.page must be a positive integer")
+                    elif pages and page not in {int(v) for v in pages if str(v).isdigit()}:
+                        errors.append(f"{asset_id}: source.page {page} is not included in {qid}.source_pages")
                     if not _valid_source_bbox(source_meta.get("bbox")):
                         errors.append(f"{asset_id}: source.bbox must be [x0,y0,x1,y1] with positive area")
 
