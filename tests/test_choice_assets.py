@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+import hashlib
 import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
+
+from PIL import Image
 
 ROOT = Path(__file__).parents[1]
 
@@ -60,14 +63,15 @@ class ChoiceAssetTests(unittest.TestCase):
     def test_validator_accepts_canonical_choice_asset(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp); p = root / "assets" / "choices" / "fma-2016-q005"; p.mkdir(parents=True)
-            (p / "A-01.png").write_bytes(b"x")
+            Image.new("RGB", (40, 30), "white").save(p / "A-01.png")
+            review_hash = hashlib.sha256((p / "A-01.png").read_bytes()).hexdigest()
             q = base_question(); q["choices"][0]["asset_ids"] = ["a1"]
             qpath = root / "questions.json"; apath = root / "assets.json"
             qpath.write_text(json.dumps({"questions": [q]}))
             apath.write_text(json.dumps({"assets": [{
                 "id": "a1", "file": "assets/choices/fma-2016-q005/A-01.png", "role": "choice", "choice_label": "A",
                 "choice_index": 1, "owners": ["fma-2016-q005"], "reviewed": True,
-                "crop": {"isolated_choice": True, "reviewed": True}
+                "crop": {"isolated_choice": True, "reviewed": True, "review_sha256": review_hash}
             }]}))
             report = VAL.validate(qpath, apath, True, True)
             self.assertEqual(report["status"], "ok", report)
