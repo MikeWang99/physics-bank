@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 from collections import defaultdict
 from pathlib import Path
+
+import fitz
+from PIL import Image
 
 
 def load_json(path: Path):
@@ -40,6 +45,126 @@ def _valid_source_bbox(value) -> bool:
     except (TypeError, ValueError):
         return False
     return x1 > x0 and y1 > y0
+
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _bbox_equal(a, b, tol: float = 0.01) -> bool:
+    if not _valid_source_bbox(a) or not _valid_source_bbox(b):
+        return False
+    return all(abs(float(x) - float(y)) <= tol for x, y in zip(a, b))
+
+
+def _edge_ink_risk(path: Path, border: int = 2, tol: int = 10) -> tuple[int, int]:
+    """Return (dark border pixels, inspected border pixels).
+
+    Final reviewed crops are expected to retain a tiny white safety margin.
+    Significant ink touching the outermost border is a generic clipping signal.
+    """
+    try:
+        img = Image.open(path).convert("L")
+    except Exception:
+        return -1, 0
+    w, h = img.size
+    if w < 4 or h < 4:
+        return -1, 0
+    px = img.load()
+    coords = set()
+    b = min(border, max(1, min(w, h) // 2))
+    for y in range(h):
+        for x in list(range(b)) + list(range(max(0, w - b), w)):
+            coords.add((x, y))
+    for x in range(w):
+        for y in list(range(b)) + list(range(max(0, h - b), h)):
+            coords.add((x, y))
+    dark = sum(1 for x, y in coords if px[x, y] < 255 - tol)
+    return dark, len(coords)
+
+
+def _text_lines(page: fitz.Page) -> list[dict]:
+    out = []
+    for block in page.get_text("dict").get("blocks", []):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            text = "".join(span.get("text", "") for span in line.get("spans", [])).strip()
+            if not text:
+                continue
+            box = fitz.Rect(line.get("bbox", (0, 0, 0, 0)))
+            if not box.is_empty:
+                out.append({"text": " ".join(text.split()), "bbox": box})
+    return out
+
+
+def _overlap(a0: float, a1: float, b0: float, b1: float) -> float:
+    return max(0.0, min(a1, b1) - max(a0, b0))
+
+
+def _source_neighborhood_risks(page: fitz.Page, bbox, gap: float = 42.0) -> list[dict]:
+    """Find source objects that make a semantic bbox look incomplete."""
+    rect = fitz.Rect(*bbox)
+    risks: list[dict] = []
+
+    # Text objects are especially important because PDF diagrams often store
+    # labels separately from vector strokes.
+    for item in _text_lines(page):
+        text = item["text"]
+        box = item["bbox"]
+        if rect.intersects(box):
+            if not rect.contains(box):
+                risks.append({"kind": "text_crosses_bbox", "text": text})
+            continue
+        if len(text) > 24 or box.height > 32:
+            continue
+
+        v_overlap = _overlap(rect.y0, rect.y1, box.y0, box.y1)
+        h_overlap = _overlap(rect.x0, rect.x1, box.x0, box.x1)
+        side_gap = min(
+            rect.x0 - box.x1 if box.x1 <= rect.x0 else float("inf"),
+            box.x0 - rect.x1 if box.x0 >= rect.x1 else float("inf"),
+        )
+        vertical_gap = min(
+            rect.y0 - box.y1 if box.y1 <= rect.y0 else float("inf"),
+            box.y0 - rect.y1 if box.y0 >= rect.y1 else float("inf"),
+        )
+        side_attached = side_gap <= gap and v_overlap >= max(1.0, 0.25 * min(box.height, rect.height))
+        vertical_attached = (
+            vertical_gap <= min(gap, 28.0)
+            and h_overlap >= max(4.0, 0.20 * min(box.width, rect.width))
+        )
+        if side_attached or vertical_attached:
+            risks.append({
+                "kind": "nearby_short_text",
+                "text": text,
+                "gap": round(min(side_gap, vertical_gap), 2),
+            })
+
+    # A drawing/image that intersects the bbox but extends beyond it is an
+    # objective clipping failure, independent of semantics.
+    for drawing in page.get_drawings():
+        box = drawing.get("rect")
+        if box is None:
+            continue
+        box = fitz.Rect(box)
+        if rect.intersects(box) and not rect.contains(box):
+            risks.append({"kind": "drawing_crosses_bbox", "text": ""})
+    for image_info in page.get_images(full=True):
+        try:
+            image_rects = page.get_image_rects(image_info[0])
+        except Exception:
+            image_rects = []
+        for box in image_rects:
+            box = fitz.Rect(box)
+            if rect.intersects(box) and not rect.contains(box):
+                risks.append({"kind": "image_crosses_bbox", "text": ""})
+    return risks
 
 
 def _validate_source_anchor(anchor, narrative_text: str) -> str | None:
@@ -210,6 +335,7 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
                 errors.append(f"{qid}: missing asset record {asset_id}")
                 continue
             file_value = asset.get("file") or asset.get("path")
+            asset_path = None
             if not file_value:
                 errors.append(f"{asset_id}: asset has no file/path")
             else:
@@ -218,6 +344,28 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
                     errors.append(f"{asset_id}: asset file not found: {file_value}")
             if not asset.get("reviewed", asset.get("crop", {}).get("reviewed", False)):
                 errors.append(f"{asset_id}: final asset not visually reviewed")
+
+            crop_meta = asset.get("crop") or {}
+            if strict and asset_path is not None and asset_path.exists():
+                review_hash = str(crop_meta.get("review_sha256") or "").strip().lower()
+                if not re.fullmatch(r"[0-9a-f]{64}", review_hash):
+                    errors.append(
+                        f"{asset_id}: strict visual review requires crop.review_sha256; "
+                        f"seal the final file after inspection"
+                    )
+                elif _sha256_file(asset_path) != review_hash:
+                    errors.append(
+                        f"{asset_id}: final asset changed after visual review "
+                        f"(crop.review_sha256 mismatch)"
+                    )
+                dark, inspected = _edge_ink_risk(asset_path)
+                if dark < 0:
+                    errors.append(f"{asset_id}: final asset is not a readable image")
+                elif dark > max(4, int(inspected * 0.01)):
+                    errors.append(
+                        f"{asset_id}: {dark} ink pixel(s) touch the outer 2px border; "
+                        f"possible clipped label/line — widen the source bbox"
+                    )
             owners = [str(v) for v in (asset.get("owners") or [])]
             if owners and qid not in owners:
                 errors.append(f"{asset_id}: owners does not include {qid}")
@@ -237,8 +385,65 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
                         errors.append(f"{asset_id}: source.page must be a positive integer")
                     elif pages and page not in {int(v) for v in pages if str(v).isdigit()}:
                         errors.append(f"{asset_id}: source.page {page} is not included in {qid}.source_pages")
-                    if not _valid_source_bbox(source_meta.get("bbox")):
+                    bbox = source_meta.get("bbox")
+                    if not _valid_source_bbox(bbox):
                         errors.append(f"{asset_id}: source.bbox must be [x0,y0,x1,y1] with positive area")
+                    else:
+                        reviewed_bbox = crop_meta.get("reviewed_source_bbox")
+                        if not _bbox_equal(reviewed_bbox, bbox):
+                            errors.append(
+                                f"{asset_id}: crop.reviewed_source_bbox must match the current source.bbox"
+                            )
+                    if crop_meta.get("source_neighborhood_reviewed") is not True:
+                        errors.append(
+                            f"{asset_id}: source neighborhood has not been explicitly reviewed"
+                        )
+
+                    source_file = str(source_meta.get("file") or "").strip()
+                    source_path = None
+                    if source_file:
+                        source_path = Path(source_file) if Path(source_file).is_absolute() else root / source_file
+                        if not source_path.is_file():
+                            errors.append(f"{asset_id}: source PDF not found: {source_file}")
+                    if source_path is not None and source_path.is_file():
+                        source_hash = str(crop_meta.get("review_source_sha256") or "").strip().lower()
+                        if not re.fullmatch(r"[0-9a-f]{64}", source_hash):
+                            errors.append(
+                                f"{asset_id}: crop.review_source_sha256 is required for stem/shared review"
+                            )
+                        elif _sha256_file(source_path) != source_hash:
+                            errors.append(
+                                f"{asset_id}: source PDF changed after visual review "
+                                f"(crop.review_source_sha256 mismatch)"
+                            )
+                        try:
+                            doc = fitz.open(source_path)
+                            if isinstance(page, int) and 1 <= page <= doc.page_count and _valid_source_bbox(bbox):
+                                page_obj = doc[page - 1]
+                                rect = fitz.Rect(*bbox)
+                                if not page_obj.rect.contains(rect):
+                                    errors.append(f"{asset_id}: source.bbox extends outside source page")
+                                risks = _source_neighborhood_risks(page_obj, bbox)
+                                ignored = {str(v) for v in (crop_meta.get("ignore_nearby_text") or [])}
+                                for risk in risks:
+                                    if (
+                                        risk["kind"] == "nearby_short_text"
+                                        and risk.get("text") in ignored
+                                    ):
+                                        continue
+                                    if risk["kind"] == "nearby_short_text":
+                                        errors.append(
+                                            f"{asset_id}: possible omitted diagram label just outside source.bbox: "
+                                            f"{risk.get('text')!r} (gap {risk.get('gap')} pt); "
+                                            f"widen bbox or document it in crop.ignore_nearby_text"
+                                        )
+                                    else:
+                                        errors.append(
+                                            f"{asset_id}: source object crosses source.bbox "
+                                            f"({risk['kind']}{': ' + repr(risk.get('text')) if risk.get('text') else ''})"
+                                        )
+                        except Exception as exc:
+                            errors.append(f"{asset_id}: failed source visual-integrity check: {exc}")
 
             if role == "choice":
                 label = _label(asset.get("choice_label"))

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
+import hashlib
 import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
+
+import fitz
+from PIL import Image
 
 ROOT = Path(__file__).parents[1]
 SPEC = importlib.util.spec_from_file_location("validate_bank", ROOT / "scripts" / "validate_bank.py")
@@ -17,7 +21,7 @@ def base_question():
         "id": "q46",
         "context": "",
         "stem": "A student draws a correct bar chart. A sample of the gas is taken from the state.",
-        "source_pages": [12],
+        "source_pages": [1],
         "content_format": "markdown+latex",
         "answer": {"text": None, "label": None, "evidence": "not-provided"},
         "requires_manual_review": False,
@@ -27,29 +31,47 @@ def base_question():
     }
 
 
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def assets(root: Path):
     figures = root / "assets" / "figures"
+    source = root / "assets" / "source"
     figures.mkdir(parents=True, exist_ok=True)
-    (figures / "main.png").write_bytes(b"x")
-    (figures / "bar.png").write_bytes(b"x")
+    source.mkdir(parents=True, exist_ok=True)
+
+    Image.new("RGB", (80, 60), "white").save(figures / "main.png")
+    Image.new("RGB", (80, 60), "white").save(figures / "bar.png")
+
+    source_pdf = source / "paper.pdf"
+    doc = fitz.open()
+    doc.new_page(width=595, height=842)
+    doc.save(source_pdf)
+    source_hash = _sha(source_pdf)
+
+    def entry(asset_id, filename, bbox):
+        return {
+            "id": asset_id,
+            "file": f"assets/figures/{filename}",
+            "role": "stem",
+            "owners": ["q46"],
+            "reviewed": True,
+            "source": {"file": "assets/source/paper.pdf", "page": 1, "bbox": bbox},
+            "crop": {
+                "reviewed": True,
+                "review_sha256": _sha(figures / filename),
+                "review_source_sha256": source_hash,
+                "reviewed_source_bbox": bbox,
+                "source_neighborhood_reviewed": True,
+                "review_method": "test",
+            },
+        }
+
     return {
         "assets": [
-            {
-                "id": "fig-main",
-                "file": "assets/figures/main.png",
-                "role": "stem",
-                "owners": ["q46"],
-                "reviewed": True,
-                "source": {"file": "assets/source/paper.pdf", "page": 12, "bbox": [50, 80, 400, 210]},
-            },
-            {
-                "id": "fig-bar",
-                "file": "assets/figures/bar.png",
-                "role": "stem",
-                "owners": ["q46"],
-                "reviewed": True,
-                "source": {"file": "assets/source/paper.pdf", "page": 12, "bbox": [70, 240, 390, 330]},
-            },
+            entry("fig-main", "main.png", [50, 80, 400, 210]),
+            entry("fig-bar", "bar.png", [70, 240, 390, 330]),
         ]
     }
 
@@ -79,7 +101,7 @@ class NarrativeLayoutTests(unittest.TestCase):
     def test_valid_reviewed_layout_passes(self):
         q = base_question()
         q["layout_blocks"] = valid_layout()
-        q["layout_review"] = {"reviewed": True, "method": "source-page-visual", "reviewed_against_pages": [12]}
+        q["layout_review"] = {"reviewed": True, "method": "source-page-visual", "reviewed_against_pages": [1]}
         report = self.run_validation(q, None)
         self.assertEqual(report["status"], "ok", report["errors"])
 
