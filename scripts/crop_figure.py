@@ -170,6 +170,65 @@ def _update_manifest(path: Path, w: int, h: int) -> bool:
     return False
 
 
+
+def _invalidate_asset_review(path: Path) -> bool:
+    """Invalidate any sealed assets.json review after a destructive image edit.
+
+    reviewed=true is only meaningful for the exact bytes that were inspected.
+    This walks upward to find the question-bank assets.json, matches the edited
+    file, clears the review seal, and forces a fresh final-file/source review.
+    """
+    candidates = []
+    for parent in [path.parent, *list(path.parents)[:6]]:
+        cand = parent / "assets.json"
+        if cand.exists() and cand not in candidates:
+            candidates.append(cand)
+
+    changed_any = False
+    for cand in candidates:
+        try:
+            data = json.loads(cand.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        assets = data.get("assets") if isinstance(data, dict) else None
+        if not isinstance(assets, list):
+            continue
+
+        try:
+            rel = path.resolve().relative_to(cand.parent.resolve()).as_posix()
+        except Exception:
+            rel = None
+
+        exact = []
+        basename = []
+        for entry in assets:
+            value = str(entry.get("file") or entry.get("path") or "")
+            if rel and Path(value).as_posix() == rel:
+                exact.append(entry)
+            elif value and Path(value).name == path.name:
+                basename.append(entry)
+        matches = exact if exact else (basename if len(basename) == 1 else [])
+
+        if not matches:
+            continue
+        for entry in matches:
+            entry["reviewed"] = False
+            crop = entry.setdefault("crop", {})
+            crop["reviewed"] = False
+            crop["review_invalidated_reason"] = "asset file modified after review"
+            for key in (
+                "review_sha256",
+                "review_source_sha256",
+                "reviewed_source_bbox",
+                "source_neighborhood_reviewed",
+                "review_method",
+            ):
+                crop.pop(key, None)
+        cand.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        changed_any = True
+    return changed_any
+
+
 def _split_manifest(orig_path: Path, child_specs: list[tuple[Path, int, int]]) -> bool:
     """Replace a single figure entry in figures.json with multiple child entries.
 
@@ -273,6 +332,7 @@ def cmd_autotrim(path: Path, tol: int, pad: int) -> int:
     _backup(path)
     cropped = img.crop((x0, y0, x1, y1))
     cropped.save(path)
+    invalidated = _invalidate_asset_review(path)
     nw, nh = cropped.size
     upd = _update_manifest(path, nw, nh)
     print(f"{path.name}: autotrim {w}x{h} -> {nw}x{nh} "
@@ -296,6 +356,7 @@ def cmd_box(path: Path, box) -> int:
     _backup(path)
     cropped = img.crop((x0, y0, x1, y1))
     cropped.save(path)
+    invalidated = _invalidate_asset_review(path)
     nw, nh = cropped.size
     upd = _update_manifest(path, nw, nh)
     print(f"{path.name}: box crop {w}x{h} -> {nw}x{nh} "
@@ -424,6 +485,7 @@ def cmd_decaption(path: Path, tol: int, apply: bool) -> int:
     _backup(path)
     cropped = img.crop((0, 0, w, cut))
     cropped.save(path)
+    invalidated = _invalidate_asset_review(path)
     nw, nh = cropped.size
     upd = _update_manifest(path, nw, nh)
     print(f"{path.name}: decaption {w}x{h} -> {nw}x{nh}  ({reason})"
@@ -556,6 +618,7 @@ def cmd_top_check(path: Path, tol: int, apply: bool) -> int:
     _backup(path)
     cropped = img.crop((0, cut, w, h))
     cropped.save(path)
+    invalidated = _invalidate_asset_review(path)
     nw, nh = cropped.size
     upd = _update_manifest(path, nw, nh)
     print(f"{path.name}: top-check {w}x{h} -> {nw}x{nh}  ({reason})"
@@ -798,6 +861,7 @@ def cmd_split(path: Path, boxes: list[tuple[int, int, int, int]],
         print(f"{path.name}: split child → {out.name}  ({cw}x{ch} from bbox "
               f"({x0},{y0},{x1},{y1}))")
 
+    invalidated = _invalidate_asset_review(path)
     upd = _split_manifest(path, children)
     # Remove the original PNG — it's been replaced by the children. The .bak
     # is preserved (provides recovery for both children if either was wrong).
