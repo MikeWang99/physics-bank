@@ -1,4 +1,4 @@
-# Question-bank schema and asset manifest · v2.3
+# Question-bank schema and asset manifest · v2.4
 
 Paths are relative to the bundle root. The schema keeps text provenance, source year, visual provenance, and visual-choice ownership explicit.
 
@@ -56,7 +56,17 @@ Stem/shared figure:
   "role": "stem",
   "owners": ["fma-2016-q005"],
   "reviewed": true,
-  "crop": {"render_zoom": 6, "method": "box+autotrim", "reviewed": true}
+  "crop": {
+    "render_zoom": 6,
+    "method": "source-pdf-bbox",
+    "reviewed": true,
+    "review_sha256": "<sha256 of final image bytes>",
+    "review_source_sha256": "<sha256 of source PDF bytes>",
+    "reviewed_source_bbox": [96.2, 188.4, 402.6, 331.8],
+    "source_neighborhood_reviewed": true,
+    "review_method": "source-page-halo+final-file",
+    "ignore_nearby_text": []
+  }
 }
 ```
 
@@ -80,7 +90,8 @@ Choice figure:
     "render_zoom": 6,
     "method": "box+autotrim",
     "reviewed": true,
-    "isolated_choice": true
+    "isolated_choice": true,
+    "review_sha256": "<sha256 of final image bytes>"
   }
 }
 ```
@@ -124,3 +135,18 @@ For every final visual asset, record its source page. For `stem` and `shared` as
 For every question with a `stem` or `shared` visual, add explicit `question.layout_blocks` and `question.layout_review`. The exact contract is in `references/narrative-layout.md`.
 
 Choice visuals remain bound through `choices[].asset_ids`; they are not inserted into narrative `layout_blocks`.
+
+
+## Visual review seal · v2.4
+
+`reviewed: true` is no longer sufficient by itself in strict mode.
+
+For every final visual asset, `crop.review_sha256` must equal the SHA-256 of the current image file. For `stem` / `shared` assets, strict mode additionally requires:
+
+- `crop.review_source_sha256` matching the current source PDF;
+- `crop.reviewed_source_bbox` matching `source.bbox`;
+- `crop.source_neighborhood_reviewed: true`.
+
+Run `scripts/seal_asset_review.py` only after inspecting the final image and the source-halo preview. Any destructive recrop invalidates these fields automatically.
+
+Strict validation also examines the source page itself. A text, drawing, or embedded image that crosses `source.bbox` is a hard failure. Short nearby text objects (common for circuit values, Greek symbols, axis labels, and units) are treated as likely omitted labels. If a nearby text object is genuinely unrelated (e.g. a neighboring caption), list its exact text in `crop.ignore_nearby_text` only after visual confirmation.
