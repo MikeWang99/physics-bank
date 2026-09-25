@@ -61,15 +61,19 @@ def names_from_classification(classification: dict, taxonomy: dict) -> dict:
 
 def derived_tags(question: dict, taxonomy: dict) -> list[str]:
     c = question.get("classification") or {}
-    names = names_from_classification(c, taxonomy)
+    cur = c.get("curriculum") or {}
     tags = []
-    if names["course"]:
-        tags.append(f"course:{slugify(names['course'])}")
-    if names["unit"]:
-        tags.append(f"unit:{slugify(names['unit'])}")
-    if names["topic"]:
-        tags.append(f"topic:{slugify(names['topic'])}")
-    tags.extend(f"subtopic:{slugify(v)}" for v in names["subtopics"] if slugify(v))
+    course_id = str(cur.get("course_id") or "")
+    unit_id = str(cur.get("unit_id") or "")
+    topic_id = str(cur.get("topic_id") or "")
+    subtopic_ids = [str(v) for v in (cur.get("subtopic_ids") or [])]
+    if course_id:
+        tags.append(f"course:{course_id}")
+    if unit_id:
+        tags.append(f"unit:{unit_id}")
+    if topic_id:
+        tags.append(f"topic:{topic_id}")
+    tags.extend(f"subtopic:{sid}" for sid in subtopic_ids if sid)
     domain = str(c.get("physics_domain") or "")
     if domain:
         tags.append(f"domain:{slugify(domain)}")
