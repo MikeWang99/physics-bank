@@ -1,9 +1,9 @@
 ---
 name: physics-bank
-description: Build source-faithful, validated physics question banks from exam PDFs, preserving deterministic text provenance, exam-year metadata, independently reviewed visual assets, and the original narrative placement of every stem/shared figure.
+description: Build source-faithful, semantically classified, validated physics question banks from exam PDFs, preserving deterministic text provenance, exam-year metadata, reviewed visual assets, narrative figure placement, and auditable curriculum/model/skill/difficulty metadata.
 ---
 
-# Physics Bank v2.4
+# Physics Bank v2.5
 
 Build a reusable, auditable question bank. The governing rule is **source fidelity first**: the model may enrich metadata, but it must not silently repair, shorten, paraphrase, merge, or guess source text, source metadata, or visual option content.
 
@@ -17,10 +17,12 @@ Create a `question-bank/` bundle containing:
 - `assets/figures/` with final reviewed stem/shared figures only.
 - `assets/choices/<question-id>/` with final reviewed **individual choice images** only.
 - `extraction/raw_pages.json` and `extraction/question_drafts.json` as the audit trail.
+- `classification-taxonomy.json` defining the stable course → unit → topic → subtopic hierarchy for this bank.
+- Per-question `classification` objects using `physics-question-classification/v1`.
 
 Every published question must contain a canonical four-digit `year` and a matching `year:YYYY` tag.
 
-Read `references/text-extraction.md`, `references/asset-manifest.md`, `references/choice-assets.md`, and `references/narrative-layout.md` before execution.
+Read `references/text-extraction.md`, `references/asset-manifest.md`, `references/choice-assets.md`, `references/narrative-layout.md`, `references/semantic-classification.md`, and `references/semantic-taxonomy.json` before execution.
 
 ## Stage A — faithful extraction (mandatory; do not skip)
 
@@ -50,11 +52,13 @@ Read `references/text-extraction.md`, `references/asset-manifest.md`, `reference
 
 Never infer omitted clauses from physics knowledge. If a symbol, sentence, or exam year cannot be established confidently from source evidence, keep the question in manual review instead of completing it from memory.
 
-## Stage B — semantic enrichment
+## Stage B — source-faithful normalization
 
-Create stable final IDs, normalize math to `markdown+latex`, add course/unit/topic/subtopic/difficulty/skills/tags when supported by source/context, preserve canonical year metadata, and attach answer evidence. Missing official answers remain `not-provided`; do not solve merely to fill the field.
+Create stable final IDs, normalize math to `markdown+latex`, preserve canonical year metadata, and attach answer evidence. Missing official answers remain `not-provided`; do not solve merely to fill the answer field.
 
 Stage B may normalize whitespace and mathematical notation but must preserve meaning and all conditions. Compare final stem/choices against Stage A before publication.
+
+Do **not** assign curriculum/topic/skill/difficulty tags yet. Semantic classification happens only after the complete text and all relevant figures/visual choices have been reconstructed and reviewed.
 
 ## Figure pipeline
 
@@ -174,6 +178,90 @@ Do not rely on downstream PDF generation to infer layout. `homework-pdf` already
 
 
 
+## Stage C — semantic classification gate · mandatory in v2.5
+
+Classification is a dedicated model pass, not incidental metadata filling.
+
+### C1. Build the bank taxonomy once
+
+Create `question-bank/classification-taxonomy.json` using schema `physics-bank-curriculum-taxonomy/v1`.
+
+Authority order:
+
+1. official syllabus/course structure supplied with the bank;
+2. user-provided taxonomy;
+3. stable competition/bank taxonomy;
+4. generic physics taxonomy only when no official structure exists.
+
+Use stable lowercase IDs. Do not let individual questions invent new spellings for the same Unit/Topic/Subtopic.
+
+### C2. Read the complete question before classifying
+
+For every question, inspect:
+
+- `context`;
+- `stem`;
+- all choices;
+- every stem/shared figure;
+- visual answer choices when they contain physics information.
+
+Do not classify from keywords or the printed object alone.
+
+### C3. Produce structured classification
+
+Write `question.classification` using `physics-question-classification/v1`.
+
+The model must identify:
+
+- curriculum mapping: `course_id / unit_id / topic_id / subtopic_ids`;
+- controlled `physics_domain`;
+- `primary_topic` and optional `secondary_topics`;
+- concrete `knowledge_points`;
+- `solution_models`: the laws/definitions/constraints/conservation relations/etc. that bridge givens to unknowns;
+- controlled `skills`;
+- difficulty level 1–5 with explicit drivers;
+- overall confidence;
+- short evidence for each semantic judgment.
+
+A topic is primary only when it organizes the solution. Do not tag `friction`, `circular motion`, `energy`, etc. merely because the corresponding word/object appears in the stem.
+
+Do not save hidden chain-of-thought. Save concise audit evidence such as:
+
+> The student must identify momentum conservation to determine the post-collision speed before any later energy calculation.
+
+### C4. Derive searchable fields and tags
+
+After classification, run:
+
+```bash
+python "$SKILL_DIR/scripts/derive_semantic_tags.py" \
+  question-bank/questions.json \
+  --taxonomy question-bank/classification-taxonomy.json
+```
+
+`classification` is canonical. The script derives the compatibility/search fields:
+
+- `course`
+- `unit`
+- `topic`
+- `subtopics`
+- `knowledge_points`
+- `solution_models`
+- `skills`
+- `difficulty`
+- prefixed `tags`
+
+Do not manually maintain derived semantic tags.
+
+### C5. Semantic review behavior
+
+If classification confidence is below the reference threshold, the taxonomy mapping is ambiguous, or the relevant figure/text is uncertain:
+
+- set `classification.status: "review"`;
+- set `classification.review.reviewed: false`;
+- add `semantic_classification_uncertain` to `review_reasons`;
+- keep the question out of strict publication until reviewed.
+
 ## Final hard gate
 
 Run all validators:
@@ -187,14 +275,21 @@ python "$SKILL_DIR/scripts/validate_bank.py" question-bank/questions.json \
 python "$SKILL_DIR/scripts/validate_year_metadata.py" \
   question-bank/questions.json \
   --report question-bank/year-validation-report.json
+
+python "$SKILL_DIR/scripts/validate_semantic_classification.py" \
+  question-bank/questions.json \
+  --taxonomy question-bank/classification-taxonomy.json \
+  --strict \
+  --report question-bank/semantic-validation-report.json
 ```
 
-Do not present a bank as complete if validation fails. In v2.4 strict validation additionally rejects stale/missing visual-review seals, source-PDF changes after review, source-bbox changes after review, significant ink touching the outer crop border, source text/drawings/images that cross the bbox, likely short diagram labels just outside the bbox, stem/shared visuals without source bboxes, missing/incomplete narrative layout blocks, unreviewed layouts, duplicate/missing figure placement, invalid anchors, or layout text that no longer covers the complete context + stem.
+Do not present a bank as complete if validation fails. In v2.5 the semantic gate also rejects missing classification, taxonomy IDs that do not resolve, invalid unit/topic/subtopic parentage, uncontrolled skill/model kinds, missing evidence, low confidence, missing primary solution models, invalid difficulty records, stale derived fields, and missing derived semantic tags. Visual-integrity protections from v2.4 remain mandatory.
 
 ## Stability rules
 
 - Never skip Stage A and jump directly from PDF to polished JSON.
 - Never publish a question without verified year metadata.
+- Never publish a question without a reviewed semantic classification that resolves against the bank taxonomy.
 - Never use only page screenshots as question content when readable text can be represented structurally.
 - Never discard cross-page continuation text.
 - Never hide uncertainty by lowering confidence without a review flag.
@@ -207,4 +302,7 @@ Do not present a bank as complete if validation fails. In v2.4 strict validation
 - Never publish unresolved asset IDs, orphan assets, duplicate IDs, or unreviewed text.
 - Never publish a stem/shared visual without explicit source geometry and narrative placement.
 - Never let a downstream renderer guess whether a figure belongs before or after a sentence.
+- Never classify a question from keywords alone; read the full text and relevant figures first.
+- Never treat a visible object/topic word as the primary topic unless it actually organizes the solution.
+- Never hand-edit derived semantic tags after classification; regenerate them from the canonical classification object.
 - Re-running on the same PDF should preserve stable IDs, source boundaries, year metadata, choice-asset slots, source bboxes, and reviewed layout order unless human review intentionally corrects them.
