@@ -39,6 +39,8 @@ class ExtractTests(unittest.TestCase):
             result = MOD.extract(pdf, "exam")
             self.assertEqual(result["question_count"], 2)
             q1, q2 = result["questions"]
+            self.assertIsNone(q1["classification"])
+            self.assertIsNone(q2["classification"])
             self.assertIn("Questions 1 and 2", q1["context"])
             self.assertIn("Questions 1 and 2", q2["context"])
             self.assertEqual(q1["source_pages"], [1, 2])

@@ -1,0 +1,169 @@
+{
+  "schema": "physics-bank-semantic-reference/v1",
+  "domains": [
+    {
+      "id": "mechanics",
+      "name": "Mechanics"
+    },
+    {
+      "id": "electricity-magnetism",
+      "name": "Electricity & Magnetism"
+    },
+    {
+      "id": "waves-oscillations",
+      "name": "Waves & Oscillations"
+    },
+    {
+      "id": "thermodynamics",
+      "name": "Thermodynamics"
+    },
+    {
+      "id": "fluids",
+      "name": "Fluids"
+    },
+    {
+      "id": "optics",
+      "name": "Optics"
+    },
+    {
+      "id": "modern-physics",
+      "name": "Modern Physics"
+    },
+    {
+      "id": "experimental-methods",
+      "name": "Experimental Methods"
+    },
+    {
+      "id": "mathematical-methods",
+      "name": "Mathematical Methods"
+    },
+    {
+      "id": "cross-domain",
+      "name": "Cross-domain"
+    }
+  ],
+  "solution_model_kinds": [
+    "governing_law",
+    "definition",
+    "constraint",
+    "conservation_law",
+    "constitutive_relation",
+    "kinematic_relation",
+    "geometry",
+    "boundary_condition",
+    "initial_condition",
+    "symmetry",
+    "approximation",
+    "representation",
+    "mathematical_identity"
+  ],
+  "skills": [
+    {
+      "id": "model_selection",
+      "name": "Model selection"
+    },
+    {
+      "id": "free_body_diagram",
+      "name": "Free-body diagram"
+    },
+    {
+      "id": "representation_choice",
+      "name": "Representation choice"
+    },
+    {
+      "id": "graph_interpretation",
+      "name": "Graph interpretation"
+    },
+    {
+      "id": "graph_construction",
+      "name": "Graph construction"
+    },
+    {
+      "id": "equation_setup",
+      "name": "Equation setup"
+    },
+    {
+      "id": "multi_step_reasoning",
+      "name": "Multi-step reasoning"
+    },
+    {
+      "id": "proportional_reasoning",
+      "name": "Proportional reasoning"
+    },
+    {
+      "id": "vector_decomposition",
+      "name": "Vector decomposition"
+    },
+    {
+      "id": "coordinate_choice",
+      "name": "Coordinate-system choice"
+    },
+    {
+      "id": "conservation_law_selection",
+      "name": "Conservation-law selection"
+    },
+    {
+      "id": "constraint_recognition",
+      "name": "Constraint recognition"
+    },
+    {
+      "id": "estimation",
+      "name": "Estimation"
+    },
+    {
+      "id": "unit_analysis",
+      "name": "Unit/dimensional analysis"
+    },
+    {
+      "id": "limiting_case",
+      "name": "Limiting-case reasoning"
+    },
+    {
+      "id": "symmetry_reasoning",
+      "name": "Symmetry reasoning"
+    },
+    {
+      "id": "data_analysis",
+      "name": "Data analysis"
+    },
+    {
+      "id": "experimental_design",
+      "name": "Experimental design"
+    },
+    {
+      "id": "uncertainty_analysis",
+      "name": "Uncertainty analysis"
+    },
+    {
+      "id": "algebraic_manipulation",
+      "name": "Algebraic manipulation"
+    },
+    {
+      "id": "calculus",
+      "name": "Calculus"
+    },
+    {
+      "id": "geometry",
+      "name": "Geometry"
+    },
+    {
+      "id": "qualitative_explanation",
+      "name": "Qualitative explanation"
+    },
+    {
+      "id": "comparison_reasoning",
+      "name": "Comparison reasoning"
+    }
+  ],
+  "difficulty_rubric": {
+    "1": "Direct recall or one-step substitution after the model is explicitly given",
+    "2": "Routine application with one standard model and limited setup",
+    "3": "Requires nontrivial model/representation selection or a short multi-step chain",
+    "4": "Requires combining multiple models/constraints, hidden relationships, or substantial algebraic reasoning",
+    "5": "Competition-level synthesis with multiple non-obvious modeling decisions, novel transfer, or extended derivation"
+  },
+  "confidence": {
+    "review_below": 0.75,
+    "description": "Overall classification confidence from 0 to 1; low confidence requires manual semantic review"
+  }
+}

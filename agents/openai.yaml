@@ -1,7 +1,7 @@
 interface:
   display_name: "物理题库"
-  short_description: "稳定提取、核验并保存图文叙事顺序的物理题库"
-  default_prompt: "Use $physics-bank v2.3 end-to-end. Always run deterministic Stage A extraction first, verify exam year and source text, visually QA every final asset, record source.page + source.bbox for stem/shared figures, reconstruct the original text/figure order in question.layout_blocks with source_anchor values, visually review that layout, then run strict validation. Visual answer choices still use isolated choices[].asset_ids. Never let a downstream PDF renderer guess image placement."
+  short_description: "忠实提取、图文复原与可审计语义分类的物理题库"
+  default_prompt: "Use $physics-bank v2.5 end-to-end. Run deterministic Stage A extraction first, verify year/text and every visual/layout, then perform a separate semantic-classification pass only after the complete question and figures are available. Build classification-taxonomy.json, classify each question into curriculum IDs, primary/secondary topics, knowledge points, solution models, controlled skills, difficulty, evidence and confidence, derive searchable tags with derive_semantic_tags.py, then run all text/visual/year/semantic strict validators. Never classify from keywords alone and never hand-edit derived semantic tags."
 
 policy:
   allow_implicit_invocation: true
