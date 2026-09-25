@@ -1,4 +1,4 @@
-# Question-bank schema and asset manifest · v2.4
+# Question-bank schema and asset manifest · v2.5
 
 Paths are relative to the bundle root. The schema keeps text provenance, source year, visual provenance, and visual-choice ownership explicit.
 
@@ -21,7 +21,58 @@ Paths are relative to the bundle root. The schema keeps text provenance, source 
         {"label": "B", "text": "", "asset_ids": ["fma-2016-q005-choice-B-01"]}
       ],
       "answer": {"text": null, "label": null, "evidence": "not-provided"},
-      "knowledge_points": ["graph interpretation"],
+      "classification": {
+        "schema": "physics-question-classification/v1",
+        "status": "reviewed",
+        "curriculum": {
+          "course_id": "fma",
+          "unit_id": "kinematics",
+          "topic_id": "graphs",
+          "subtopic_ids": ["motion-graphs"]
+        },
+        "physics_domain": "mechanics",
+        "primary_topic": {
+          "name": "Motion graph interpretation",
+          "evidence": "The correct option is selected by interpreting the physical meaning of the plotted variables."
+        },
+        "secondary_topics": [],
+        "knowledge_points": [
+          {
+            "name": "Graph slope/shape encodes a physical relationship",
+            "role": "required",
+            "evidence": "The student must connect the graph representation to the motion model."
+          }
+        ],
+        "solution_models": [
+          {
+            "name": "Graph representation relationship",
+            "kind": "representation",
+            "role": "primary",
+            "evidence": "The graph itself is the governing representation used to decide the answer."
+          }
+        ],
+        "skills": [
+          {
+            "id": "graph_interpretation",
+            "evidence": "The student must read a graph rather than substitute directly into a formula."
+          }
+        ],
+        "difficulty": {
+          "level": 2,
+          "drivers": ["routine interpretation of one standard representation"]
+        },
+        "confidence": 0.95,
+        "review": {"reviewed": true, "method": "model-semantic-analysis"},
+        "derived_fields_version": "1.0"
+      },
+      "course": "F=ma",
+      "unit": "Kinematics",
+      "topic": "Graphs",
+      "subtopics": ["Motion graphs"],
+      "knowledge_points": ["Graph slope/shape encodes a physical relationship"],
+      "solution_models": ["Graph representation relationship"],
+      "skills": ["graph_interpretation"],
+      "difficulty": 2,
       "asset_ids": [
         "fma-2016-q005-choice-A-01",
         "fma-2016-q005-choice-B-01"
@@ -150,3 +201,18 @@ For every final visual asset, `crop.review_sha256` must equal the SHA-256 of the
 Run `scripts/seal_asset_review.py` only after inspecting the final image and the source-halo preview. Any destructive recrop invalidates these fields automatically.
 
 Strict validation also examines the source page itself. A text, drawing, or embedded image that crosses `source.bbox` is a hard failure. Short nearby text objects (common for circuit values, Greek symbols, axis labels, and units) are treated as likely omitted labels. If a nearby text object is genuinely unrelated (e.g. a neighboring caption), list its exact text in `crop.ignore_nearby_text` only after visual confirmation.
+
+
+## Semantic classification · v2.5
+
+`question.classification` is the canonical semantic record. The flat fields `course`, `unit`, `topic`, `subtopics`, `knowledge_points`, `solution_models`, `skills`, `difficulty`, and semantic tag prefixes are derived search/compatibility mirrors.
+
+Every bank must also contain `classification-taxonomy.json` using `physics-bank-curriculum-taxonomy/v1`. Question curriculum IDs must resolve to that file with valid parent-child relationships.
+
+See:
+
+- `references/semantic-classification.md`
+- `references/semantic-taxonomy.json`
+- `references/classification-taxonomy-template.json`
+
+Run `scripts/derive_semantic_tags.py` after model classification and before semantic validation. Do not manually maintain the derived semantic prefixes.
