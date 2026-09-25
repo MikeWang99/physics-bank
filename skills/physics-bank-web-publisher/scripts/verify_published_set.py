@@ -48,13 +48,27 @@ def main() -> int:
     args = p.parse_args()
     bundle = json.loads(args.bundle.read_text(encoding="utf-8"))
     set_id = str((bundle.get("practiceSet") or {}).get("id") or "")
+
+    catalog_url = f"{args.base_url.rstrip('/')}/api/practice/catalog"
+    try:
+        catalog = fetch_json(catalog_url, args.access_token)
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        print(f"Catalog API failed: HTTP {exc.code}: {body[:500]}")
+        return 2
+    sets = catalog.get("sets") if isinstance(catalog, dict) else None
+    if not isinstance(sets, list) or not any(isinstance(v, dict) and v.get("id") == set_id for v in sets):
+        print(f"ERROR: {set_id} is missing from /api/practice/catalog")
+        return 1
+    print(f"Catalog API OK: {set_id} is discoverable")
+
     url = f"{args.base_url.rstrip('/')}/api/practice/sets/{urllib.parse.quote(set_id, safe='')}"
     try:
         payload = fetch_json(url, args.access_token)
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
         if exc.code == 403:
-            print("Runtime API returned 403 (locked set). Verify DB state and repeat with an authenticated access token.")
+            print("Set API returned 403 (locked set). Catalog publication is visible; verify DB state and repeat set/UI verification with an authenticated access token.")
             print(body[:500])
             return 3
         print(f"Runtime API failed: HTTP {exc.code}: {body[:500]}")
