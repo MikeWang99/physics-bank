@@ -195,6 +195,7 @@ def extract(pdf: Path, id_prefix: str) -> dict:
                 "context": "",
                 "answer": {"text": None, "label": None, "evidence": "not-provided"},
                 "knowledge_points": [],
+                "classification": null,
                 "asset_ids": [],
                 "review_reasons": [],
                 "_body_texts": [rest] if rest else [],
