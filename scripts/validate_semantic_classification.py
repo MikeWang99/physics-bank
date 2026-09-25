@@ -127,6 +127,8 @@ def validate_question(q: dict, idx: dict, reference: dict, strict: bool) -> list
     uid = str(cur.get("unit_id") or "")
     tid = str(cur.get("topic_id") or "")
     sids = [str(v) for v in (cur.get("subtopic_ids") or [])]
+    if len(sids) != len(set(sids)):
+        errors.append(f"{qid}: duplicate curriculum subtopic_ids")
     if uid not in idx["units"]:
         errors.append(f"{qid}: unknown curriculum unit_id {uid!r}")
     if tid not in idx["topics"]:
@@ -270,6 +272,11 @@ def validate_question(q: dict, idx: dict, reference: dict, strict: bool) -> list
         missing = sorted(expected_tags - actual_tags)
         if missing:
             errors.append(f"{qid}: missing derived semantic tag(s): {', '.join(missing)}")
+        generated_prefixes = tuple(DERIVE.GENERATED_PREFIXES)
+        actual_generated = {tag for tag in actual_tags if tag.startswith(generated_prefixes)}
+        unexpected = sorted(actual_generated - expected_tags)
+        if unexpected:
+            errors.append(f"{qid}: stale/unexpected derived semantic tag(s): {', '.join(unexpected)}")
 
     return errors
 
