@@ -142,6 +142,16 @@ This checks stable IDs, unique positions, content hashes, asset hashes/paths, cu
 
 Default behavior is planning only. Do not write production merely because compilation succeeded.
 
+Create the read-only diff:
+
+```bash
+python skills/physics-bank-web-publisher/scripts/plan_publish.py \
+  <bank>/web-publish-bundle.json \
+  --output <bank>/web-publish-plan.json
+```
+
+It requires server-side `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` but performs no writes.
+
 A publish plan must state for every question:
 
 - stable question ID
@@ -204,9 +214,21 @@ Do not retire questions missing from a new bundle unless the user explicitly req
 
 After apply:
 
-1. verify DB identities, expected content hashes, and asset rows;
-2. fetch `/api/practice/sets/<practice-set-id>`;
-3. verify question IDs/count/order and non-null `questionVersionId`;
+1. verify DB identities, expected content hashes, and asset rows:
+
+   ```bash
+   python skills/physics-bank-web-publisher/scripts/verify_database.py \
+     <bank>/web-publish-bundle.json
+   ```
+
+2. verify `/api/practice/catalog` contains the new/updated set;
+3. fetch `/api/practice/sets/<practice-set-id>` and verify question IDs/count/order and non-null `questionVersionId`:
+
+   ```bash
+   python skills/physics-bank-web-publisher/scripts/verify_published_set.py \
+     <bank>/web-publish-bundle.json
+   ```
+
 4. confirm choice images and stem/supporting images resolve;
 5. when browser access and permissions allow, visually inspect representative questions, including:
    - text-only question;
