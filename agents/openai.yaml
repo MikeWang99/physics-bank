@@ -1,7 +1,7 @@
 interface:
   display_name: "物理题库"
-  short_description: "忠实提取、图文复原与可审计语义分类的物理题库"
-  default_prompt: "Use $physics-bank v2.5 end-to-end. Run deterministic Stage A extraction first, verify year/text and every visual/layout, then perform a separate semantic-classification pass only after the complete question and figures are available. Build classification-taxonomy.json, classify each question into curriculum IDs, primary/secondary topics, knowledge points, solution models, controlled skills, difficulty, evidence and confidence, derive searchable tags with derive_semantic_tags.py, then run all text/visual/year/semantic strict validators. Never classify from keywords alone and never hand-edit derived semantic tags."
+  short_description: "忠实提取、数学规范化、图文复原与语义分类"
+  default_prompt: "Use $physics-bank v2.6 end-to-end. Run deterministic Stage A extraction first; preserve raw source text; then perform source-faithful math normalization so LaTeX commands, underscore subscripts and caret superscripts are explicitly inside $...$/$$...$$ after visual source comparison. Run validate_math_markup.py and strict validate_bank before visual/layout and semantic publication gates. Never let downstream renderers guess math syntax from bare underscores."
 
 policy:
   allow_implicit_invocation: true
