@@ -1,4 +1,4 @@
-# Question-bank schema and asset manifest · v2.5
+# Question-bank schema and asset manifest · v2.6
 
 Paths are relative to the bundle root. The schema keeps text provenance, source year, visual provenance, and visual-choice ownership explicit.
 
@@ -216,3 +216,22 @@ See:
 - `references/classification-taxonomy-template.json`
 
 Run `scripts/derive_semantic_tags.py` after model classification and before semantic validation. Do not manually maintain the derived semantic prefixes.
+
+
+## Math normalization · v2.6
+
+Student-facing canonical text remains `markdown+latex`. Any explicit LaTeX command, underscore subscript, or caret superscript must be inside `$...$` or `$$...$$`.
+
+Valid:
+
+```json
+"stem": "The kinetic energy is $U_K$ and the initial speed is $v_0$."
+```
+
+Invalid:
+
+```json
+"stem": "The kinetic energy is U_K and the initial speed is v_0."
+```
+
+See `references/math-normalization.md`. Strict bank validation rejects the invalid form.

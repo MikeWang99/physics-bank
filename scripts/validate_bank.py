@@ -17,6 +17,87 @@ def load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _mask_nonprose_spans(text: str) -> str:
+    """Mask code, URLs, and valid math spans while preserving positions."""
+    value = str(text or "")
+    def blank(match: re.Match) -> str:
+        return " " * len(match.group(0))
+    value = re.sub(r"`[^`\n]*`", blank, value)
+    value = re.sub(r"https?://\S+", blank, value)
+    value = re.sub(r"\$\$.*?\$\$", blank, value, flags=re.S)
+    value = re.sub(r"\$[^$\n]+\$", blank, value)
+    return value
+
+
+_BARE_MATH_PATTERNS = [
+    re.compile(r"\\[A-Za-z]+_(?:\{[^{}\n]+\}|[A-Za-z0-9+\-]+)"),
+    re.compile(r"\\[A-Za-z]+\^(?:\{[^{}\n]+\}|[A-Za-z0-9+\-]+)"),
+    re.compile(r"\\[A-Za-z]+"),
+    re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-zΑ-Ωα-ωµμ][A-Za-z0-9]*|[0-9]+)_(?:\{[^{}\n]+\}|[A-Za-z0-9+\-]+)"),
+    re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-zΑ-Ωα-ωµμ][A-Za-z0-9]*|[0-9]+)\^(?:\{[^{}\n]+\}|[A-Za-z0-9+\-]+)"),
+]
+
+
+def find_bare_math_markup(text: str) -> list[str]:
+    """Return unmistakable math syntax that appears outside $...$/$...$."""
+    masked = _mask_nonprose_spans(text)
+    found: list[str] = []
+    for pattern in _BARE_MATH_PATTERNS:
+        for match in pattern.finditer(masked):
+            token = match.group(0)
+            if token not in found:
+                found.append(token)
+    if "$" in masked:
+        found.append("<unmatched-$>")
+    return found
+
+
+def _question_math_fields(question: dict) -> list[tuple[str, str]]:
+    fields: list[tuple[str, str]] = []
+    context = str(question.get("context") or "")
+    stem = str(question.get("stem") or question.get("stem_markdown") or "")
+    if context:
+        fields.append(("context", context))
+    if stem:
+        fields.append(("stem", stem))
+    for index, choice in enumerate(question.get("choices") or [], start=1):
+        if isinstance(choice, dict):
+            text = str(choice.get("text") or choice.get("text_markdown") or "")
+            if text:
+                label = str(choice.get("label") or index)
+                fields.append((f"choice[{label}]", text))
+    for key in ("subquestions", "question_parts", "parts"):
+        items = question.get(key) or []
+        if isinstance(items, list):
+            for index, item in enumerate(items, start=1):
+                if isinstance(item, dict):
+                    text = str(item.get("text") or item.get("stem") or item.get("content") or "")
+                else:
+                    text = str(item or "")
+                if text:
+                    fields.append((f"{key}[{index}]", text))
+    answer = question.get("answer")
+    if isinstance(answer, dict):
+        for key in ("text", "sampleAnswer", "explanation"):
+            text = str(answer.get(key) or "")
+            if text:
+                fields.append((f"answer.{key}", text))
+    return fields
+
+
+def question_math_issues(question: dict) -> list[str]:
+    issues: list[str] = []
+    for field, text in _question_math_fields(question):
+        tokens = find_bare_math_markup(text)
+        if tokens:
+            shown = ", ".join(repr(token) for token in tokens[:8])
+            issues.append(
+                f"{field} contains bare/unbalanced math markup outside $...$: {shown}; "
+                "normalize the canonical bank text to markdown+latex"
+            )
+    return issues
+
+
 def _label(value) -> str:
     return str(value or "").strip().upper()
 
@@ -234,6 +315,11 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
         if q.get("requires_manual_review"):
             msg = f"{qid}: requires_manual_review ({', '.join(q.get('review_reasons') or [])})"
             (errors if strict else warnings).append(msg)
+
+        math_issues = question_math_issues(q)
+        if math_issues:
+            target = errors if strict else warnings
+            target.extend(f"{qid}: {issue}" for issue in math_issues)
 
         choices = q.get("choices") or []
         labels = [_label(c.get("label")) for c in choices if isinstance(c, dict) and c.get("label")]

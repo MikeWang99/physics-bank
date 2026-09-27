@@ -1,9 +1,9 @@
 ---
 name: physics-bank
-description: Build source-faithful, semantically classified, validated physics question banks from exam PDFs, preserving deterministic text provenance, exam-year metadata, reviewed visual assets, narrative figure placement, and auditable curriculum/model/skill/difficulty metadata.
+description: Build source-faithful, semantically classified, math-normalized, validated physics question banks from exam PDFs, preserving deterministic text provenance, exam-year metadata, reviewed visual assets, narrative figure placement, and auditable curriculum/model/skill/difficulty metadata.
 ---
 
-# Physics Bank v2.5
+# Physics Bank v2.6
 
 Build a reusable, auditable question bank. The governing rule is **source fidelity first**: the model may enrich metadata, but it must not silently repair, shorten, paraphrase, merge, or guess source text, source metadata, or visual option content.
 
@@ -22,7 +22,7 @@ Create a `question-bank/` bundle containing:
 
 Every published question must contain a canonical four-digit `year` and a matching `year:YYYY` tag.
 
-Read `references/text-extraction.md`, `references/asset-manifest.md`, `references/choice-assets.md`, `references/narrative-layout.md`, `references/semantic-classification.md`, and `references/semantic-taxonomy.json` before execution.
+Read `references/text-extraction.md`, `references/math-normalization.md`, `references/asset-manifest.md`, `references/choice-assets.md`, `references/narrative-layout.md`, `references/semantic-classification.md`, and `references/semantic-taxonomy.json` before execution.
 
 ## Stage A — faithful extraction (mandatory; do not skip)
 
@@ -54,9 +54,42 @@ Never infer omitted clauses from physics knowledge. If a symbol, sentence, or ex
 
 ## Stage B — source-faithful normalization
 
-Create stable final IDs, normalize math to `markdown+latex`, preserve canonical year metadata, and attach answer evidence. Missing official answers remain `not-provided`; do not solve merely to fill the answer field.
+Create stable final IDs, preserve canonical year metadata, attach answer evidence, and normalize mathematical notation to canonical `markdown+latex`. Missing official answers remain `not-provided`; do not solve merely to fill the answer field.
 
-Stage B may normalize whitespace and mathematical notation but must preserve meaning and all conditions. Compare final stem/choices against Stage A before publication.
+### B1. Math normalization — mandatory
+
+PDF text layers often flatten visual mathematical typography. Compare the final student-facing text against the rendered source page and encode the **same source notation** explicitly.
+
+Examples:
+
+```text
+U_K       → $U_K$
+v_0       → $v_0$
+mu_s      → $\mu_s$
+\mu_s     → $\mu_s$
+F_net     → $F_{\text{net}}$
+x^2       → $x^2$
+```
+
+Rules:
+
+- any LaTeX command, underscore subscript, or caret superscript in canonical student-facing text must be inside `$...$` or `$$...$$`;
+- do not infer a different symbol from physics knowledge when the source is ambiguous;
+- do not globally reinterpret underscores downstream; the bank must carry the math semantics;
+- preserve Stage A `raw_source_text` unchanged for audit;
+- if the source symbol cannot be established confidently, keep the question in manual review.
+
+Run the focused diagnostic after normalization:
+
+```bash
+python "$SKILL_DIR/scripts/validate_math_markup.py" \
+  question-bank/questions.json \
+  --report question-bank/math-validation-report.json
+```
+
+The normal strict `validate_bank.py` gate also enforces the same rule.
+
+Stage B may normalize whitespace and mathematical notation but must preserve prose meaning and every physical condition. Compare final context/stem/choices against Stage A before publication.
 
 Do **not** assign curriculum/topic/skill/difficulty tags yet. Semantic classification happens only after the complete text and all relevant figures/visual choices have been reconstructed and reviewed.
 
@@ -272,6 +305,10 @@ python "$SKILL_DIR/scripts/validate_bank.py" question-bank/questions.json \
   --strict --require-text-review \
   --report question-bank/validation-report.json
 
+python "$SKILL_DIR/scripts/validate_math_markup.py" \
+  question-bank/questions.json \
+  --report question-bank/math-validation-report.json
+
 python "$SKILL_DIR/scripts/validate_year_metadata.py" \
   question-bank/questions.json \
   --report question-bank/year-validation-report.json
@@ -283,13 +320,14 @@ python "$SKILL_DIR/scripts/validate_semantic_classification.py" \
   --report question-bank/semantic-validation-report.json
 ```
 
-Do not present a bank as complete if validation fails. In v2.5 the semantic gate also rejects missing classification, taxonomy IDs that do not resolve, invalid unit/topic/subtopic parentage, uncontrolled skill/model kinds, missing evidence, low confidence, missing primary solution models, invalid difficulty records, stale derived fields, and missing derived semantic tags. Visual-integrity protections from v2.4 remain mandatory.
+Do not present a bank as complete if validation fails. In v2.6 strict validation additionally rejects bare/unbalanced mathematical markup such as `U_K`, `v_0`, `x^2`, or `\mu_s` outside math delimiters. The v2.5 semantic gate and all v2.4 visual-integrity protections remain mandatory.
 
 ## Stability rules
 
 - Never skip Stage A and jump directly from PDF to polished JSON.
 - Never publish a question without verified year metadata.
 - Never publish a question without a reviewed semantic classification that resolves against the bank taxonomy.
+- Never publish LaTeX syntax, underscore subscripts, or caret superscripts as ordinary prose; encode them in `$...$` / `$$...$$`.
 - Never use only page screenshots as question content when readable text can be represented structurally.
 - Never discard cross-page continuation text.
 - Never hide uncertainty by lowering confidence without a review flag.
