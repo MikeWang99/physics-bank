@@ -168,3 +168,7 @@ The current client renders prompt first, then `image`, then `supportingImages`, 
 ```
 
 The current frontend consumes `practiceSet/practiceStep`. `physicsBank` retains the complete canonical information for future renderer/filter upgrades.
+
+## Answer-source preservation · v1.1
+
+The `metadata.physicsBank.answer` object stores the full source-derived canonical answer: `kind`, `label`, `text`, source/provenance, answer-only ordered `layout_blocks`, excluded non-instructional marks and independent `asset_ids`. A key-only answer maps to `practiceStep.correctAnswer` without `practiceStep.solution` prose. A genuine answer explanation maps to `practiceStep.solution`. Answer images are `question_assets.role=answer`; the first has metadata.slot=`solutionImage`, additional images metadata.slot=`answerAssets` and require an explicit answer-layout-degradation override until the UI supports ordered solution figures. Never treat solution diagrams as question stem figures.
