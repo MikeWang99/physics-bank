@@ -82,6 +82,11 @@ def _question_math_fields(question: dict) -> list[tuple[str, str]]:
             text = str(answer.get(key) or "")
             if text:
                 fields.append((f"answer.{key}", text))
+        for index, block in enumerate(answer.get("layout_blocks") or [], 1):
+            if _layout_kind(block) == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    fields.append((f"answer.layout_blocks[{index}]", text))
     return fields
 
 
@@ -324,6 +329,10 @@ def validate_answer_content(question: dict, asset_index: dict, strict: bool) -> 
         if not isinstance(ext, dict) or ext.get("reviewed") is not True or not str(ext.get("method") or ""):
             errors.append(f"{qid}: worked_solution requires reviewed answer.extraction.method")
 
+        source = answer.get("source")
+        if not isinstance(source, dict) or not str(source.get("file") or "").strip() or not isinstance(source.get("page"), int) or source.get("page") < 1:
+            errors.append(f"{qid}: worked_solution requires answer.source.file and positive answer.source.page")
+
     for aid in answer_ids:
         asset = asset_index.get(aid)
         if asset is None:
@@ -425,6 +434,12 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
         if not isinstance(q.get("answer"), dict):
             errors.append(f"{qid}: answer object is required")
         errors.extend(validate_answer_content(q, asset_index, strict))
+        answer_source = (q.get("answer") or {}).get("source") if isinstance(q.get("answer"), dict) else None
+        if strict and isinstance(answer_source, dict) and answer_source.get("file"):
+            file_value = str(answer_source["file"])
+            source_path = Path(file_value) if Path(file_value).is_absolute() else root / file_value
+            if not source_path.is_file():
+                errors.append(f"{qid}: answer source document does not exist: {file_value}")
         stem = str(q.get("stem") or q.get("stem_markdown") or "").strip()
         context = str(q.get("context") or "").strip()
         if not stem and not context:
