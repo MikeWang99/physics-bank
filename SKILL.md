@@ -1,9 +1,9 @@
 ---
 name: physics-bank
-description: Build source-faithful, semantically classified, math-normalized, validated physics question banks from exam PDFs, preserving deterministic text provenance, exam-year metadata, reviewed visual assets, narrative figure placement, and auditable curriculum/model/skill/difficulty metadata.
+description: Build source-faithful, semantically classified, math-normalized, answer-faithful, validated physics question banks from exam PDFs, preserving deterministic text provenance, exam-year metadata, reviewed visual assets, narrative figure placement, and auditable curriculum/model/skill/difficulty metadata.
 ---
 
-# Physics Bank v2.6
+# Physics Bank v2.7
 
 Build a reusable, auditable question bank. The governing rule is **source fidelity first**: the model may enrich metadata, but it must not silently repair, shorten, paraphrase, merge, or guess source text, source metadata, or visual option content.
 
@@ -16,13 +16,14 @@ Create a `question-bank/` bundle containing:
 - `assets/source/` with source papers supplied by the user.
 - `assets/figures/` with final reviewed stem/shared figures only.
 - `assets/choices/<question-id>/` with final reviewed **individual choice images** only.
+- `assets/answers/<question-id>/` with independent, source-reviewed **worked-answer diagrams** (when the answer source contains instructional graphics).
 - `extraction/raw_pages.json` and `extraction/question_drafts.json` as the audit trail.
 - `classification-taxonomy.json` defining the stable course → unit → topic → subtopic hierarchy for this bank.
 - Per-question `classification` objects using `physics-question-classification/v1`.
 
 Every published question must contain a canonical four-digit `year` and a matching `year:YYYY` tag.
 
-Read `references/text-extraction.md`, `references/math-normalization.md`, `references/asset-manifest.md`, `references/choice-assets.md`, `references/narrative-layout.md`, `references/semantic-classification.md`, and `references/semantic-taxonomy.json` before execution.
+Read `references/answer-extraction.md`, `references/text-extraction.md`, `references/math-normalization.md`, `references/asset-manifest.md`, `references/choice-assets.md`, `references/narrative-layout.md`, `references/semantic-classification.md`, and `references/semantic-taxonomy.json` before execution.
 
 ## Stage A — faithful extraction (mandatory; do not skip)
 
@@ -56,6 +57,27 @@ Never infer omitted clauses from physics knowledge. If a symbol, sentence, or ex
 
 Create stable final IDs, preserve canonical year metadata, attach answer evidence, and normalize mathematical notation to canonical `markdown+latex`. Missing official answers remain `not-provided`; do not solve merely to fill the answer field.
 
+### B0. Source-faithful answer extraction — mandatory in v2.7
+
+**Always distinguish the answer source from the solution content students should see.**
+
+- If an official/user-provided key gives only a single option, store `answer.kind: "key_only"`, `answer.label: "A"`, and `answer.text: null`. The `evidence` code and full `answer.source`/provenance live in metadata only. Never generate `Official answer: A.`, `According to AAPT...`, or an invented worked explanation.
+- If the source contains a real explanation/derivation/answer figures, use `answer.kind: "worked_solution"`. Transcribe **only** the actual instructional prose/formulae from the source to `answer.text`. Render independent answer diagrams to `assets/answers/<question-id>/` with `role: "answer"`, record each in both question and answer asset IDs, preserve the answer text/figure order using `answer.layout_blocks`, and visually review and seal the exact final figures against the original answer page.
+- Keep the original untouched answer PDF/image under `assets/source/`. Record `answer.source`, `answer.extraction` and, for omitted signatures/watermarks/headers, `answer.excluded_non_instructional` with source bboxes and reasons. Never remove an overlapping signature if doing so would erase derivation, a formula, or diagram labels.
+- If the answer itself is missing or ambiguous, use `not-provided` and manual review rather than guessing.
+
+Full schema, source-fidelity boundaries, and examples: `references/answer-extraction.md`.
+
+Run the focused answer QA after building canonical answers:
+
+```bash
+python "$SKILL_DIR/scripts/validate_answer_content.py" \
+  question-bank/questions.json --assets question-bank/assets.json \
+  --report question-bank/answer-validation-report.json
+```
+
+The normal strict `validate_bank.py` also enforces this contract.
+
 ### B1. Math normalization — mandatory
 
 PDF text layers often flatten visual mathematical typography. Compare the final student-facing text against the rendered source page and encode the **same source notation** explicitly.
@@ -82,6 +104,10 @@ Rules:
 Run the focused diagnostic after normalization:
 
 ```bash
+python "$SKILL_DIR/scripts/validate_answer_content.py" \
+  question-bank/questions.json --assets question-bank/assets.json \
+  --report question-bank/answer-validation-report.json
+
 python "$SKILL_DIR/scripts/validate_math_markup.py" \
   question-bank/questions.json \
   --report question-bank/math-validation-report.json
@@ -132,6 +158,12 @@ Do **not** assign curriculum/topic/skill/difficulty tags yet. Semantic classific
    The seal stores the final-image SHA-256, source-PDF SHA-256, and reviewed source bbox. Any later file/bbox/source change makes strict validation fail until the asset is reviewed and sealed again.
 8. Reconstruct the original text/figure reading order in `question.layout_blocks`. Every figure block must carry a `source_anchor`; every stem/shared asset must appear exactly once.
 9. Compare the reconstructed order against the rendered source page. Only then set `layout_review.reviewed: true` on the question.
+
+### Worked-answer diagram pipeline · v2.7
+
+When an official solution or user-provided answer image contains instructional diagrams, use the same source-page rendering and SHA-sealed review rules as stem/shared figures, but with **`role: "answer"`** and files under `assets/answers/<question-id>/`.
+
+Do not put signatures, publisher attributions or answer-key boilerplate into canonical `answer.text`; retain original source for audit and document excluded non-instructional regions. Use `answer.layout_blocks` (separate from question stem `layout_blocks`) to retain the original worked solution reading order. Text in a diagram must be preserved, not guessed.
 
 ### Visual choice pipeline — mandatory when any option contains an image
 
@@ -320,13 +352,16 @@ python "$SKILL_DIR/scripts/validate_semantic_classification.py" \
   --report question-bank/semantic-validation-report.json
 ```
 
-Do not present a bank as complete if validation fails. In v2.6 strict validation additionally rejects bare/unbalanced mathematical markup such as `U_K`, `v_0`, `x^2`, or `\mu_s` outside math delimiters. The v2.5 semantic gate and all v2.4 visual-integrity protections remain mandatory.
+Do not present a bank as complete if validation fails. In v2.7 strict validation additionally checks answer-key minimality, source-provenance isolation and source-sealed illustrated solutions; v2.6 strict validation rejects bare/unbalanced mathematical markup such as `U_K`, `v_0`, `x^2`, or `\mu_s` outside math delimiters. The v2.5 semantic gate and all v2.4 visual-integrity protections remain mandatory.
 
 ## Stability rules
 
 - Never skip Stage A and jump directly from PDF to polished JSON.
 - Never publish a question without verified year metadata.
 - Never publish a question without a reviewed semantic classification that resolves against the bank taxonomy.
+- Never replace a label-only official answer with an invented explanation or source-attribution prose.
+- Never publish an answer diagram without the unchanged source, explicit answer-only placement and SHA-sealed visual review.
+- Never allow signatures/watermarks to replace, obscure, or erase educational equations or labels.
 - Never publish LaTeX syntax, underscore subscripts, or caret superscripts as ordinary prose; encode them in `$...$` / `$$...$$`.
 - Never use only page screenshots as question content when readable text can be represented structurally.
 - Never discard cross-page continuation text.
