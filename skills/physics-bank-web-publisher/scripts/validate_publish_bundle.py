@@ -145,6 +145,11 @@ def validate(bundle: dict, bank_root: Path) -> list[str]:
             elif role == "figure":
                 if slot != "supportingImages":
                     errors.append(f"{qid}: figure asset slot must be supportingImages")
+            elif role == "answer":
+                if slot not in {"solutionImage", "answerAssets"}:
+                    errors.append(f"{qid}: answer image slot must be solutionImage/answerAssets")
+                if a.get("choiceKey") is not None:
+                    errors.append(f"{qid}: answer image must not have a choiceKey")
             else:
                 errors.append(f"{qid}: unsupported publish asset role {role!r}")
 
