@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 SCHEMA = "pocket-cosmos-publish-bundle/v1"
-PUBLISHER_VERSION = "1.0.0"
+PUBLISHER_VERSION = "1.1.0"
 ALLOWED_SYSTEMS = {
     "ap-physics-1", "ap-physics-2", "ap-c-mech", "ap-c-em",
     "igcse", "competition", "bpho", "a-level", "physics-bowl",
