@@ -1,7 +1,7 @@
 interface:
   display_name: "题库网页发布"
-  short_description: "把 Physics Bank 安全编译并发布到 Pocket Cosmos"
-  default_prompt: "Use $physics-bank-web-publisher v1.0. Validate the source physics-bank first, compile it into the current Pocket Cosmos runtime schema, block unsupported layout degradation by default, validate the publish bundle, plan/diff before production writes, upload content-addressed assets before database mutation, execute the generated SQL as one Supabase transaction, and verify the database/API/live rendering. Never overwrite historical question versions or silently discard classification/layout provenance."
+  short_description: "带版本、图文与答案来源审计的题库发布"
+  default_prompt: "Use $physics-bank-web-publisher v1.1. Validate physics-bank v2.7 answers, math, assets, layouts and semantic classification first. Key-only answers provide only correctAnswer; never synthesize Official answer A. Preserve source-derived worked explanations and answer figures with role=answer. Block unsupported interleaved question or answer layouts by default. Plan first, upload immutable assets, atomically apply versioned SQL, then verify DB/API."
 
 policy:
   allow_implicit_invocation: true
