@@ -1,4 +1,4 @@
-# Question-bank schema and asset manifest · v2.6
+# Question-bank schema and asset manifest · v2.7
 
 Paths are relative to the bundle root. The schema keeps text provenance, source year, visual provenance, and visual-choice ownership explicit.
 
@@ -160,9 +160,9 @@ Choice figure:
 - If an option has multiple independent images, use unique indices (`A-01`, `A-02`, ...).
 - A figure shared by all options is a `stem` or `shared` asset, not duplicated as four choice assets.
 
-Valid asset roles remain `stem`, `choice`, `shared`. `reviewed: true` means the final file itself was visually inspected after the last modification.
+Valid asset roles are `stem`, `choice`, `shared`, and `answer`. `reviewed: true` means the final file itself was visually inspected after the last modification.
 
-Always retain an `answer` object. Only populate answers from official/user-supplied evidence unless the user explicitly requests solutions. Mathematical source remains Markdown+LaTeX.
+Always retain an `answer` object. For key-only sources, populate only `answer.label` and set `answer.text` to null; source provenance belongs in metadata, not student-facing solution text. For source-provided worked solutions, extract text and reviewed answer figures without inventing reasoning. Mathematical source remains Markdown+LaTeX.
 
 
 ## Visual provenance position
@@ -235,3 +235,17 @@ Invalid:
 ```
 
 See `references/math-normalization.md`. Strict bank validation rejects the invalid form.
+
+## Answer extraction · v2.7
+
+The canonical `answer` object supports optional `kind` values `key_only`, `worked_solution`, and `not_provided` (older answer objects without `kind` remain valid).
+
+**Key-only:** `{"kind":"key_only","label":"C","text":null,"evidence":"official-key","source":{"file":"assets/source/key.pdf","page":2}}`. Do not put exam-board attribution or any explanation invented by the model in `answer.text`.
+
+**Worked solution from source:** `answer.text` contains the real source's explanation/derivation; `answer.asset_ids` references reviewed `role=answer` figures under `assets/answers/<question-id>/`. All answer figures must also appear in the question's top-level `asset_ids` for existing tool compatibility. `answer.layout_blocks` is the answer-only reading order and must reproduce the complete `answer.text` and each answer diagram once. `answer.extraction.reviewed: true` and `answer.layout_review.reviewed: true` are mandatory under strict validation for image-bearing worked answers.
+
+Answer assets require source document file, 1-based source page and PDF-coordinate bbox. Their `crop.review_sha256`, `crop.review_source_sha256`, `crop.reviewed_source_bbox` and `crop.source_neighborhood_reviewed` are sealed like stem/shared figures. Note: an answer's source page may differ from `question.source_pages`; the latter refer to the question, not the key.
+
+The untouched original answer page remains in `assets/source` as the audit source. Any omitted signature/watermark/header must be recorded under `answer.excluded_non_instructional` with `kind`, `source_bbox` and an explicit `reason`. If a mark overlaps explanatory information, retain it or flag manual review, never erase physics content.
+
+See `references/answer-extraction.md` for the extraction protocol.

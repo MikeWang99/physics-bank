@@ -15,7 +15,8 @@
   },
   "rendering": {
     "allow_layout_degradation": false,
-    "choice_layout": "stacked"
+    "choice_layout": "stacked",
+    "allow_answer_layout_degradation": false
   },
   "storage": {
     "bucket": "question-assets",

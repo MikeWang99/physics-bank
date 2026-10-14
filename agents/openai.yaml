@@ -1,7 +1,7 @@
 interface:
   display_name: "物理题库"
-  short_description: "忠实提取、数学规范化、图文复原与语义分类"
-  default_prompt: "Use $physics-bank v2.6 end-to-end. Run deterministic Stage A extraction first; preserve raw source text; then perform source-faithful math normalization so LaTeX commands, underscore subscripts and caret superscripts are explicitly inside $...$/$$...$$ after visual source comparison. Run validate_math_markup.py and strict validate_bank before visual/layout and semantic publication gates. Never let downstream renderers guess math syntax from bare underscores."
+  short_description: "忠实提取题干、答案、图片与可审计语义分类"
+  default_prompt: "Use $physics-bank v2.7 end-to-end. Extract real answer-key labels without generating extra solution prose or AAPT attribution; store source citations separately under answer.source. For image-based solutions preserve the unedited source, faithfully transcribe equations/derivations, isolate instructional answer figures, log excluded signatures/watermarks with source bboxes, retain exact answer.layout_blocks and seal final assets. Strictly validate answers, math, visual assets, year and semantic classification before publishing."
 
 policy:
   allow_implicit_invocation: true

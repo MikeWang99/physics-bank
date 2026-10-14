@@ -22,6 +22,7 @@ Example:
   },
   "rendering": {
     "allow_layout_degradation": false,
+    "allow_answer_layout_degradation": false,
     "choice_layout": "stacked"
   },
   "storage": {
@@ -66,3 +67,7 @@ Publishing content does not grant students access and does not change practice p
 Keep `allow_layout_degradation=false` unless the user explicitly accepts the current frontend limitation.
 
 Setting it to true does not remove the original layout. The complete `layoutBlocks` remains under `metadata.physicsBank`, and the compiled question is marked degraded.
+
+## Worked-answer layout
+
+`rendering.allow_answer_layout_degradation` defaults to false. With the current UI, worked answers containing multiple figures or a figure before additional prose cannot be faithfully displayed; block rather than silently reorder. The raw answer and every figure remain preserved under `metadata.physicsBank.answer` and version-bound answer assets. Never automatically opt into degradation.

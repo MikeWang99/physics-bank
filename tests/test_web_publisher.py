@@ -212,6 +212,95 @@ class WebPublisherTests(unittest.TestCase):
             errors = VALIDATE.validate(bundle, root)
             self.assertTrue(any("asset SHA mismatch" in e for e in errors))
 
+    def test_key_only_source_does_not_generate_fake_official_solution(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_bank(root)
+            q = json.loads((root/"questions.json").read_text())
+            q["questions"][0]["answer"] = {
+                "kind": "key_only", "label": "A", "text": None,
+                "evidence": "official-key", "source": {"file":"official-key.pdf","page":5}
+            }
+            (root/"questions.json").write_text(json.dumps(q))
+            item = COMPILE.compile_bank(root, config())["questions"][0]
+            step = item["version"]["metadata"]["practiceStep"]
+            self.assertEqual(step["correctAnswer"], "A")
+            self.assertNotIn("solution", step)
+            self.assertIsNone(item["version"]["answer"]["solution"])
+            self.assertEqual(item["version"]["metadata"]["physicsBank"]["answer"]["source"]["page"], 5)
+
+    def test_worked_answer_figure_maps_to_immutable_answer_asset(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            make_bank(root)
+            directory = root/"assets"/"answers"/"q1"
+            directory.mkdir(parents=True)
+            (directory/"diagram.png").write_bytes(b"answer-diagram-bytes")
+            bank = json.loads((root/"questions.json").read_text())
+            question = bank["questions"][0]
+            question["asset_ids"].append("answer-01")
+            question["answer"] = {
+                "kind":"worked_solution","label":"A",
+                "text":"$F=ma$.", "evidence":"official-explanation",
+                "asset_ids":["answer-01"],
+                "layout_blocks":[
+                    {"type":"text","text":"$F=ma$."},
+                    {"type":"figure","asset_id":"answer-01"}
+                ],
+                "source":{"file":"official-solutions.pdf","page":10},
+                "extraction":{"reviewed":True,"method":"source-page-visual"},
+                "layout_review":{"reviewed":True,"method":"source-page-visual"}
+            }
+            (root/"questions.json").write_text(json.dumps(bank))
+            data = json.loads((root/"assets.json").read_text())
+            data["assets"].append({
+                "id":"answer-01","role":"answer","file":"assets/answers/q1/diagram.png",
+                "owners":["q1"],"source":{"file":"official-solutions.pdf","page":10,"bbox":[1,2,30,40]},
+                "reviewed":True
+            })
+            (root/"assets.json").write_text(json.dumps(data))
+            bundle = COMPILE.compile_bank(root, config())
+            item = bundle["questions"][0]
+            self.assertEqual(VALIDATE.validate(bundle,root),[])
+            answer_asset = next(a for a in item["assets"] if a["role"]=="answer")
+            self.assertEqual(answer_asset["metadata"]["slot"],"solutionImage")
+            self.assertIn("answer-01", item["version"]["metadata"]["physicsBank"]["answer"]["asset_ids"])
+            self.assertEqual(item["version"]["metadata"]["practiceStep"]["solution"],"$F=ma$.")
+
+    def test_complex_answer_layout_cannot_silently_lose_figures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            make_bank(root)
+            qdata=json.loads((root/"questions.json").read_text())
+            qdata["questions"][0]["answer"] = {
+                "kind":"worked_solution","label":"A","text":"Step one. Step two.",
+                "asset_ids":["answer-01"],
+                "layout_blocks":[
+                    {"type":"text","text":"Step one."},
+                    {"type":"figure","asset_id":"answer-01"},
+                    {"type":"text","text":"Step two."}
+                ]
+            }
+            qdata["questions"][0]["asset_ids"].append("answer-01")
+            (root/"questions.json").write_text(json.dumps(qdata))
+            (root/"assets"/"answers"/"q1").mkdir(parents=True)
+            (root/"assets"/"answers"/"q1"/"diagram.png").write_bytes(b"diagram")
+            adata=json.loads((root/"assets.json").read_text())
+            adata["assets"].append({
+                "id":"answer-01","role":"answer","file":"assets/answers/q1/diagram.png",
+                "source":{"file":"official-solutions.pdf","page":2},
+                "owners":["q1"],"reviewed":True
+            })
+            (root/"assets.json").write_text(json.dumps(adata))
+            with self.assertRaisesRegex(ValueError, "answer render would be degraded"):
+                COMPILE.compile_bank(root,config())
+            conf=config()
+            conf["rendering"]["allow_answer_layout_degradation"]=True
+            bundle=COMPILE.compile_bank(root,conf)
+            pb=bundle["questions"][0]["version"]["metadata"]["physicsBank"]
+            self.assertEqual(pb["answerRenderCompatibility"]["status"],"degraded")
+            self.assertEqual(pb["answer"]["layout_blocks"][1]["asset_id"],"answer-01")
+
     def test_sql_is_additive_versioned_and_atomic(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 SCHEMA = "pocket-cosmos-publish-bundle/v1"
-PUBLISHER_VERSION = "1.0.0"
+PUBLISHER_VERSION = "1.1.0"
 ALLOWED_SYSTEMS = {
     "ap-physics-1", "ap-physics-2", "ap-c-mech", "ap-c-em",
     "igcse", "competition", "bpho", "a-level", "physics-bowl",
@@ -132,6 +132,29 @@ def layout_compatibility(question: dict, asset_index: dict) -> dict:
     }
 
 
+def answer_render_compatibility(question: dict) -> dict:
+    """Current Practice UI supports at most one fixed-position solutionImage."""
+    answer = question.get("answer") if isinstance(question.get("answer"), dict) else {}
+    aids = [str(v) for v in (answer.get("asset_ids") or [])]
+    blocks = answer.get("layout_blocks") or []
+    text_after_figure = False
+    seen_figure = False
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+        kind = str(block.get("type") or ("figure" if "asset_id" in block else "text"))
+        if kind == "figure":
+            seen_figure = True
+        elif kind == "text" and str(block.get("text") or "").strip() and seen_figure:
+            text_after_figure = True
+    if len(aids) > 1 or text_after_figure:
+        return {
+            "status": "degraded",
+            "reason": "current Practice UI can render only one trailing solutionImage, not ordered answer.layout_blocks",
+        }
+    return {"status": "native", "reason": "answer can be shown as text and at most one trailing image"}
+
+
 def readable_tags(question: dict) -> list[str]:
     c = question.get("classification") if isinstance(question.get("classification"), dict) else {}
     primary = c.get("primary_topic") if isinstance(c.get("primary_topic"), dict) else {}
@@ -182,8 +205,8 @@ def answer_payload(question: dict, mode: str, config: dict) -> tuple[dict, dict]
         step["correctAnswer"] = label
     if text:
         step["solution"] = text
-    elif label:
-        step["solution"] = f"Official answer: {label}."
+    # A source key containing only A/B/C/D is not a worked solution.
+    # Do NOT invent "Official answer: A." for student-facing display.
     else:
         nudge = str((config.get("answers") or {}).get("missing_mcq_nudge") or "").strip()
         if mode == "multiple_choice" and nudge:
@@ -271,6 +294,13 @@ def compile_bank(bank_root: Path, config: dict) -> dict:
                 "set rendering.allow_layout_degradation=true only with explicit acceptance"
             )
 
+        answer_compat = answer_render_compatibility(q)
+        if answer_compat["status"] == "degraded" and rendering.get("allow_answer_layout_degradation") is not True:
+            raise ValueError(
+                f"{qid}: answer render would be degraded: {answer_compat['reason']}; "
+                "upgrade the site solution renderer or explicitly allow answer layout degradation"
+            )
+
         source = source_ref(q, config)
         answer, answer_step = answer_payload(q, mode, config)
         step = {
@@ -308,6 +338,8 @@ def compile_bank(bank_root: Path, config: dict) -> dict:
             "semanticTags": q.get("tags") or [],
             "taxonomyCourse": taxonomy.get("course") or {},
             "renderCompatibility": compat,
+            "answer": q.get("answer") or {},
+            "answerRenderCompatibility": answer_compat,
         }
 
         count = len(questions)
@@ -387,6 +419,29 @@ def compile_bank(bank_root: Path, config: dict) -> dict:
                     "alt": f"Option {label} image",
                     "downloadName": Path(str(a.get("file") or aid)).name,
                     "source": a.get("source") or {},
+                },
+            })
+            db_assets.append(base)
+
+        # Answer diagrams are distinct from stem and choice media. Preserve
+        # every answer image as an immutable version-bound asset.
+        answer_data = q.get("answer") if isinstance(q.get("answer"), dict) else {}
+        for order, aid in enumerate(answer_data.get("asset_ids") or []):
+            asset = asset_index.get(str(aid))
+            if not asset or asset.get("role") != "answer":
+                raise ValueError(f"{qid}: answer references missing/non-answer asset {aid}")
+            base = dict(asset_cache[str(aid)])
+            base.update({
+                "role": "answer",
+                "choiceKey": None,
+                "sortOrder": order,
+                "metadata": {
+                    "slot": "solutionImage" if order == 0 else "answerAssets",
+                    "physicsBankAssetId": str(aid),
+                    "physicsBankRole": "answer",
+                    "alt": f"Worked solution figure for Question {position + 1}",
+                    "downloadName": Path(str(asset.get("file") or aid)).name,
+                    "source": asset.get("source") or {},
                 },
             })
             db_assets.append(base)

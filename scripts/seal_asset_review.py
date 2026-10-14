@@ -123,21 +123,21 @@ def main() -> int:
     source_hash = None
     reviewed_bbox = None
 
-    if role in {"stem", "shared"}:
+    if role in {"stem", "shared", "answer"}:
         if not args.confirm_source_neighborhood:
             raise SystemExit(
-                "stem/shared assets require --confirm-source-neighborhood after "
+                "stem/shared/answer assets require --confirm-source-neighborhood after "
                 "visually comparing the source halo and final file"
             )
         source = asset.get("source") or {}
         if not _valid_bbox(source.get("bbox")):
-            raise SystemExit("stem/shared asset requires a valid source.bbox")
+            raise SystemExit("stem/shared/answer asset requires a valid source.bbox")
         page_no = source.get("page")
         if not isinstance(page_no, int) or page_no < 1:
-            raise SystemExit("stem/shared asset requires a positive source.page")
+            raise SystemExit("stem/shared/answer asset requires a positive source.page")
         source_file = source.get("file")
         if not source_file:
-            raise SystemExit("stem/shared asset requires source.file")
+            raise SystemExit("stem/shared/answer asset requires source.file")
         source_path = Path(source_file)
         if not source_path.is_absolute():
             source_path = root / source_path
@@ -171,7 +171,7 @@ def main() -> int:
     crop["reviewed"] = True
     crop["review_sha256"] = sha256_file(asset_path)
     crop["review_method"] = args.method
-    if role in {"stem", "shared"}:
+    if role in {"stem", "shared", "answer"}:
         crop["source_neighborhood_reviewed"] = True
         crop["reviewed_source_bbox"] = reviewed_bbox
         crop["review_source_sha256"] = source_hash

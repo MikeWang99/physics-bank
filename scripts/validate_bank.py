@@ -82,6 +82,11 @@ def _question_math_fields(question: dict) -> list[tuple[str, str]]:
             text = str(answer.get(key) or "")
             if text:
                 fields.append((f"answer.{key}", text))
+        for index, block in enumerate(answer.get("layout_blocks") or [], 1):
+            if _layout_kind(block) == "text":
+                text = str(block.get("text") or "")
+                if text:
+                    fields.append((f"answer.layout_blocks[{index}]", text))
     return fields
 
 
@@ -263,6 +268,136 @@ def _validate_source_anchor(anchor, narrative_text: str) -> str | None:
     return None
 
 
+
+def validate_answer_content(question: dict, asset_index: dict, strict: bool) -> list[str]:
+    """Check answer-key minimality, provenance isolation and structured image explanations."""
+    errors: list[str] = []
+    qid = str(question.get("id") or "<missing-id>")
+    answer = question.get("answer")
+    if not isinstance(answer, dict):
+        return errors  # The legacy answer-object requirement is checked by validate().
+
+    kind = answer.get("kind")
+    if kind is not None and kind not in {"key_only", "worked_solution", "not_provided"}:
+        errors.append(f"{qid}: answer.kind must be key_only/worked_solution/not_provided")
+    label = str(answer.get("label") or "").strip().upper()
+    explanation = str(answer.get("text") or "").strip()
+    answer_ids = [str(v) for v in (answer.get("asset_ids") or [])]
+    blocks = answer.get("layout_blocks")
+    top_ids = [str(v) for v in (question.get("asset_ids") or [])]
+    role_answer_ids = [
+        aid for aid in top_ids if (asset_index.get(aid) or {}).get("role") == "answer"
+    ]
+
+    if len(answer_ids) != len(set(answer_ids)):
+        errors.append(f"{qid}: answer.asset_ids contains duplicate figures")
+    if set(answer_ids) != set(role_answer_ids):
+        errors.append(
+            f"{qid}: answer.asset_ids must equal all answer-role assets owned by the question"
+        )
+
+    labels = {
+        _label(choice.get("label"))
+        for choice in (question.get("choices") or []) if isinstance(choice, dict)
+    }
+    if label and labels and label not in labels:
+        errors.append(f"{qid}: answer.label {label!r} does not match any choice")
+    if kind == "not_provided" and (label or explanation or answer_ids):
+        errors.append(f"{qid}: not_provided answer must not contain invented content")
+    if kind == "key_only" and (not label or explanation or answer_ids or blocks):
+        errors.append(
+            f"{qid}: key_only answer must contain only the correct label; "
+            "source attribution belongs in answer.source/evidence, not answer.text"
+        )
+    if label and explanation and (
+        explanation.upper().strip(". :") == label
+        or re.fullmatch(
+            r"(?:official\s+)?(?:correct\s+)?(?:answer|option|choice)\s*(?:is|:)?\s*[A-Z]\.?",
+            explanation, flags=re.I
+        )
+        or re.fullmatch(
+            r"(?:according to|as (?:provided|stated) by|per)\s+.{1,180}?"
+            r"(?:official\s+)?(?:answer|key|solution)\s*(?:is|:)?\s*[A-Z]\.?",
+            explanation, flags=re.I
+        )
+    ):
+        errors.append(f"{qid}: answer.text repeats a label or source-attribution boilerplate")
+    if kind == "worked_solution" and not (explanation or answer_ids):
+        errors.append(f"{qid}: worked_solution has no actual explanation or diagram")
+    if kind == "worked_solution" and strict:
+        ext = answer.get("extraction")
+        if not isinstance(ext, dict) or ext.get("reviewed") is not True or not str(ext.get("method") or ""):
+            errors.append(f"{qid}: worked_solution requires reviewed answer.extraction.method")
+
+        source = answer.get("source")
+        if not isinstance(source, dict) or not str(source.get("file") or "").strip() or not isinstance(source.get("page"), int) or source.get("page") < 1:
+            errors.append(f"{qid}: worked_solution requires answer.source.file and positive answer.source.page")
+
+    for aid in answer_ids:
+        asset = asset_index.get(aid)
+        if asset is None:
+            errors.append(f"{qid}: answer references unknown asset {aid}")
+            continue
+        if asset.get("role") != "answer":
+            errors.append(f"{qid}: answer asset {aid} must use role answer")
+        if aid not in top_ids:
+            errors.append(f"{qid}: answer asset {aid} must also be in question.asset_ids")
+        if [str(v) for v in (asset.get("owners") or [])] != [qid]:
+            errors.append(f"{qid}: answer asset {aid} must belong to exactly this question")
+
+    if answer_ids:
+        if not isinstance(blocks, list) or not blocks:
+            errors.append(f"{qid}: answer figures require ordered answer.layout_blocks")
+        else:
+            figures = []
+            texts = []
+            for idx, block in enumerate(blocks, 1):
+                typ = _layout_kind(block)
+                if typ == "text":
+                    value = str(block.get("text") or "").strip()
+                    if not value:
+                        errors.append(f"{qid}: answer.layout_blocks[{idx}] has empty text")
+                    else:
+                        texts.append(value)
+                elif typ == "figure":
+                    aid = str(block.get("asset_id") or "")
+                    figures.append(aid)
+                    if aid not in answer_ids:
+                        errors.append(f"{qid}: answer.layout_blocks[{idx}] references non-answer figure {aid}")
+                else:
+                    errors.append(f"{qid}: answer.layout_blocks[{idx}] supports text/figure only")
+            if sorted(figures) != sorted(answer_ids):
+                errors.append(f"{qid}: every answer figure must occur exactly once in answer.layout_blocks")
+            if _normalize_layout_text("\n".join(texts)) != _normalize_layout_text(explanation):
+                errors.append(f"{qid}: answer.layout_blocks text must reproduce answer.text in order")
+            if strict:
+                rev = answer.get("layout_review")
+                if not isinstance(rev, dict) or rev.get("reviewed") is not True or not str(rev.get("method") or ""):
+                    errors.append(f"{qid}: answer.layout_review must be visually reviewed")
+    elif blocks:
+        if not isinstance(blocks, list) or any(_layout_kind(b) != "text" for b in blocks):
+            errors.append(f"{qid}: answer without figures may have only text blocks")
+        elif _normalize_layout_text("\n".join(str(b.get("text") or "") for b in blocks)) != _normalize_layout_text(explanation):
+            errors.append(f"{qid}: answer.layout_blocks do not match answer.text")
+
+    omissions = answer.get("excluded_non_instructional", [])
+    if omissions:
+        if not isinstance(omissions, list):
+            errors.append(f"{qid}: answer.excluded_non_instructional must be a list")
+        else:
+            for idx, item in enumerate(omissions, 1):
+                if not isinstance(item, dict) or item.get("kind") not in {"signature", "watermark", "page_header", "page_footer", "duplicate_key", "other"}:
+                    errors.append(f"{qid}: invalid non-instructional omission #{idx}")
+                    continue
+                if not str(item.get("reason") or "").strip():
+                    errors.append(f"{qid}: non-instructional omission #{idx} requires reason")
+                if not _valid_source_bbox(item.get("source_bbox")):
+                    errors.append(f"{qid}: non-instructional omission #{idx} requires source_bbox")
+            if strict and (answer.get("extraction") or {}).get("reviewed") is not True:
+                errors.append(f"{qid}: removed non-instructional marks require reviewed answer.extraction")
+    return errors
+
+
 def validate(questions_path: Path, assets_path: Path | None, strict: bool, require_text_review: bool) -> dict:
     root = questions_path.parent
     data = load_json(questions_path)
@@ -298,6 +433,13 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
             errors.append(f"{qid}: content_format must be markdown+latex")
         if not isinstance(q.get("answer"), dict):
             errors.append(f"{qid}: answer object is required")
+        errors.extend(validate_answer_content(q, asset_index, strict))
+        answer_source = (q.get("answer") or {}).get("source") if isinstance(q.get("answer"), dict) else None
+        if strict and isinstance(answer_source, dict) and answer_source.get("file"):
+            file_value = str(answer_source["file"])
+            source_path = Path(file_value) if Path(file_value).is_absolute() else root / file_value
+            if not source_path.is_file():
+                errors.append(f"{qid}: answer source document does not exist: {file_value}")
         stem = str(q.get("stem") or q.get("stem_markdown") or "").strip()
         context = str(q.get("context") or "").strip()
         if not stem and not context:
@@ -456,20 +598,20 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
             if owners and qid not in owners:
                 errors.append(f"{asset_id}: owners does not include {qid}")
             role = asset.get("role")
-            if role not in {"stem", "choice", "shared"}:
+            if role not in {"stem", "choice", "shared", "answer"}:
                 errors.append(f"{asset_id}: invalid asset role {role!r}")
 
-            if strict and role in {"stem", "shared"}:
+            if strict and role in {"stem", "shared", "answer"}:
                 source_meta = asset.get("source") or {}
                 if not isinstance(source_meta, dict):
                     errors.append(f"{asset_id}: source must be an object")
                 else:
                     if not str(source_meta.get("file") or "").strip():
-                        errors.append(f"{asset_id}: source.file is required for stem/shared visual provenance")
+                        errors.append(f"{asset_id}: source.file is required for stem/shared/answer visual provenance")
                     page = source_meta.get("page")
                     if not isinstance(page, int) or page < 1:
                         errors.append(f"{asset_id}: source.page must be a positive integer")
-                    elif pages and page not in {int(v) for v in pages if str(v).isdigit()}:
+                    elif role in {"stem", "shared"} and pages and page not in {int(v) for v in pages if str(v).isdigit()}:
                         errors.append(f"{asset_id}: source.page {page} is not included in {qid}.source_pages")
                     bbox = source_meta.get("bbox")
                     if not _valid_source_bbox(bbox):
@@ -490,12 +632,12 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
                     if source_file:
                         source_path = Path(source_file) if Path(source_file).is_absolute() else root / source_file
                         if not source_path.is_file():
-                            errors.append(f"{asset_id}: source PDF not found: {source_file}")
+                            errors.append(f"{asset_id}: source document not found: {source_file}")
                     if source_path is not None and source_path.is_file():
                         source_hash = str(crop_meta.get("review_source_sha256") or "").strip().lower()
                         if not re.fullmatch(r"[0-9a-f]{64}", source_hash):
                             errors.append(
-                                f"{asset_id}: crop.review_source_sha256 is required for stem/shared review"
+                                f"{asset_id}: crop.review_source_sha256 is required for stem/shared/answer review"
                             )
                         elif _sha256_file(source_path) != source_hash:
                             errors.append(
@@ -531,6 +673,17 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
                         except Exception as exc:
                             errors.append(f"{asset_id}: failed source visual-integrity check: {exc}")
 
+            if role == "answer":
+                rel = Path(str(file_value or ""))
+                if (rel.is_absolute() or rel.parent != Path("assets") / "answers" / qid
+                        or not rel.stem):
+                    errors.append(
+                        f"{asset_id}: answer asset must live at assets/answers/{qid}/<name>.<ext>"
+                    )
+                if len(owners) != 1:
+                    errors.append(f"{asset_id}: answer asset must have exactly one owner")
+                if asset_id not in [str(v) for v in ((q.get("answer") or {}).get("asset_ids") or [])]:
+                    errors.append(f"{asset_id}: answer.asset_ids must reference the answer figure")
             if role == "choice":
                 label = _label(asset.get("choice_label"))
                 index = asset.get("choice_index", 1)
@@ -577,7 +730,7 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
             if owner not in question_ids:
                 errors.append(f"{aid}: unknown owner question {owner}")
         role = asset.get("role")
-        if role not in {"stem", "choice", "shared"}:
+        if role not in {"stem", "choice", "shared", "answer"}:
             errors.append(f"{aid}: invalid asset role {role!r}")
         if aid not in referenced_asset_ids and owners:
             warnings.append(f"{aid}: asset has owners but no question references its id")

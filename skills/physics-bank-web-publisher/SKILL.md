@@ -3,7 +3,7 @@ name: physics-bank-web-publisher
 description: Compile a validated physics-bank bundle into the Pocket Cosmos practice runtime schema, publish immutable question versions and content-addressed assets to Supabase, and verify the live website without discarding physics-bank provenance, classification, or layout information.
 ---
 
-# Physics Bank Web Publisher v1.0
+# Physics Bank Web Publisher v1.1
 
 Publish a finished `physics-bank` question bank into Pocket Cosmos. This is a **compiler/publisher**, not another extraction pipeline.
 
@@ -93,6 +93,10 @@ Important mappings:
 - `practiceStep.prompt`: same self-contained display prompt
 - physics-bank `classification` → `metadata.physicsBank.classification`
 - physics-bank `difficulty` → `practiceStep.difficulty`
+- key-only `answer.label` → `practiceStep.correctAnswer` with **no generated** `solution` or official-key boilerplate
+- authentic `answer.text` → `practiceStep.solution` only when source actually provides worked reasoning
+- source-reviewed answer figures → version-bound `question_assets.role=answer` (`solutionImage` for the first, archival `answerAssets` for additional diagrams)
+- complete answer layout/provenance → `metadata.physicsBank.answer`
 - readable topic/difficulty tags first; machine semantic tags are preserved after them
 - choice assets → `question_assets.role=choice` + `choice_key`
 - first compatible narrative figure → `role=stem, metadata.slot=image`
@@ -126,6 +130,14 @@ This protects questions such as multi-image FRQs from silently losing the image 
 An explicit config override `rendering.allow_layout_degradation=true` may compile such a question for temporary use. The full `layoutBlocks` still remains in `metadata.physicsBank`, and the publish bundle must mark `renderCompatibility.status=degraded`.
 
 Never silently downgrade layout fidelity.
+
+### Worked-answer layout gate
+
+The current Practice frontend supports a single `solutionImage`, but not arbitrary alternating solution text/figures. Publisher v1.1 preserves the full source-derived `answer.layout_blocks` and all answer assets under `metadata.physicsBank.answer` / version-bound `question_assets`.
+
+If an answer contains multiple solution figures or any explanation text after a solution figure, **block publication by default**. The optional `rendering.allow_answer_layout_degradation=true` flag explicitly permits a degraded display while retaining all source content in the database. This must never be silently enabled.
+
+For a key-only source, do not synthesize `Official answer: A.`; only emit `correctAnswer` when an option is established. Leave `practiceStep.solution` absent.
 
 ## Gate 3 — validate the publish bundle
 
