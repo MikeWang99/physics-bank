@@ -27,4 +27,3 @@ def rating(level=3):
         "rating_confidence": "HIGH", "needs_human_review": False,
         "review_notes": "", "assessed_at": None, "reviewer": None,
     }
-
