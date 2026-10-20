@@ -21,6 +21,19 @@ def slugify(value: str) -> str:
     return text.strip("-")
 
 
+def difficulty_level(difficulty):
+    """Expose usable levels only; rejected/pending audits are not practice tiers."""
+    if not isinstance(difficulty, dict):
+        return None
+    if "rubric_id" in difficulty:
+        if (difficulty.get("review_status") != "APPROVED"
+                or difficulty.get("needs_human_review") is not False
+                or difficulty.get("rating_confidence") not in ("HIGH", "MEDIUM")):
+            return None
+    level = difficulty.get("level")
+    return level if type(level) is int and level in range(1, 8) else None
+
+
 def taxonomy_index(data: dict) -> dict:
     course = data.get("course") or {}
     units = {}
@@ -90,8 +103,9 @@ def derived_tags(question: dict, taxonomy: dict) -> list[str]:
         if isinstance(item, dict) and item.get("id"):
             tags.append(f"skill:{slugify(item['id'])}")
     difficulty = c.get("difficulty") or {}
-    if isinstance(difficulty, dict) and isinstance(difficulty.get("level"), int):
-        tags.append(f"difficulty:{difficulty['level']}")
+    level = difficulty_level(difficulty)
+    if level is not None:
+        tags.append(f"difficulty:{level}")
     return sorted(set(tags))
 
 
@@ -120,7 +134,7 @@ def derive_question(question: dict, taxonomy: dict) -> dict:
         if isinstance(item, dict) and item.get("id")
     ]
     difficulty = c.get("difficulty") or {}
-    question["difficulty"] = difficulty.get("level") if isinstance(difficulty, dict) else None
+    question["difficulty"] = difficulty_level(difficulty)
 
     custom = [
         str(tag) for tag in (question.get("tags") or [])

@@ -5,6 +5,7 @@ import sys
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from difficulty_fixtures import rating
 
 ROOT = Path(__file__).parents[1]
 
@@ -86,13 +87,7 @@ def question():
                     "evidence": "The relevant forces must be identified before the governing equation is written.",
                 },
             ],
-            "difficulty": {
-                "level": 3,
-                "drivers": [
-                    "requires force-model selection before calculation",
-                    "requires more than direct substitution",
-                ],
-            },
+            "difficulty": rating(),
             "confidence": 0.92,
             "review": {"reviewed": True, "method": "model-semantic-analysis"},
         },

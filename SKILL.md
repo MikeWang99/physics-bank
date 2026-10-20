@@ -1,9 +1,9 @@
 ---
 name: physics-bank
-description: Build source-faithful, semantically classified, math-normalized, answer-faithful, validated physics question banks from exam PDFs, preserving deterministic text provenance, exam-year metadata, reviewed visual assets, narrative figure placement, and auditable curriculum/model/skill/difficulty metadata.
+description: Use when building or reviewing physics question banks from exam PDFs, including source-faithful text and answer extraction, visual assets, curriculum classification, or Pocket Cosmos TIMBAD L1–L7 difficulty assessment.
 ---
 
-# Physics Bank v2.7
+# Physics Bank v2.8
 
 Build a reusable, auditable question bank. The governing rule is **source fidelity first**: the model may enrich metadata, but it must not silently repair, shorten, paraphrase, merge, or guess source text, source metadata, or visual option content.
 
@@ -284,7 +284,7 @@ The model must identify:
 - concrete `knowledge_points`;
 - `solution_models`: the laws/definitions/constraints/conservation relations/etc. that bridge givens to unknowns;
 - controlled `skills`;
-- difficulty level 1–5 with explicit drivers;
+- Pocket Cosmos TIMBAD difficulty: usable levels L1–L7, six dimensions T/I/M/B/A/D (0–2 each), and an auditable review record;
 - overall confidence;
 - short evidence for each semantic judgment.
 
@@ -293,6 +293,20 @@ A topic is primary only when it organizes the solution. Do not tag `friction`, `
 Do not save hidden chain-of-thought. Save concise audit evidence such as:
 
 > The student must identify momentum conservation to determine the post-collision speed before any later energy calculation.
+
+### C3a. TIMBAD difficulty assessment · mandatory in v2.8
+
+Before rating any question, read **both** [the integration contract](references/difficulty-assessment.md) and the **complete** [Pocket Cosmos TIMBAD rubric v1.0](references/timbad-difficulty-rubric.md). The summary and taxonomy are navigation aids, not substitutes for the full rubric.
+
+Use **L1–L7** for usable difficulty; **L0 means REJECTED**, not an easier tier. Missing material or an unreliable solution means `NEEDS_REVIEW` with `overall_level: null`. Score **T/I/M/B/A/D independently, 0–2 each**; never compute L from their sum.
+
+After quality checks, establish and verify a reliable independent solution **before** final rating. Save only concise audit evidence in `classification.difficulty`: `rubric_id`, `rubric_version`, `review_status`, `overall_level`, numeric `level`, `timbad`, reasons/boundaries, bottlenecks, insights, prerequisites, math tools, confidence, and the short solution audit as defined in the integration contract. Read the full question and all relevant visuals; use the stated prerequisite baseline and a reasonably discoverable reliable solution. Do not infer difficulty from exam name, calculus, appearance, student errors or calculation length.
+
+The independent `solution_outline` / `final_answer` belongs **only to the difficulty audit**. It must never fill or replace source-faithful `question.answer`, or become a student-facing worked solution. An unavailable official answer remains `not-provided`; disagreement with a supplied key requires review, without silently correcting the source.
+
+Assess multipart questions per part first; any aggregate needs evidence of its highest substantive demand, not an automatic uplift. L4–L7 require explicit neighboring-level boundaries; L5–L7 require substantive key insights. LOW confidence, missing evidence or unresolved reviewer disagreement requires human review and blocks strict publication.
+
+Old 1–5 records need fresh assessment against the complete rubric; **there is no numeric conversion**. Non-strict validation keeps legacy records readable; strict publication requires the new reviewed audit. The top-level numeric `difficulty` remains a derived L1–L7 search mirror; rejected/pending records derive null and no difficulty tag.
 
 ### C4. Derive searchable fields and tags
 
@@ -352,7 +366,7 @@ python "$SKILL_DIR/scripts/validate_semantic_classification.py" \
   --report question-bank/semantic-validation-report.json
 ```
 
-Do not present a bank as complete if validation fails. In v2.7 strict validation additionally checks answer-key minimality, source-provenance isolation and source-sealed illustrated solutions; v2.6 strict validation rejects bare/unbalanced mathematical markup such as `U_K`, `v_0`, `x^2`, or `\mu_s` outside math delimiters. The v2.5 semantic gate and all v2.4 visual-integrity protections remain mandatory.
+Do not present a bank as complete if validation fails. In v2.8 the semantic validator also enforces the TIMBAD record contract and publication review gates; numerical validation cannot establish that a physics rating is correct. In v2.7 strict validation additionally checks answer-key minimality, source-provenance isolation and source-sealed illustrated solutions; v2.6 strict validation rejects bare/unbalanced mathematical markup such as `U_K`, `v_0`, `x^2`, or `\mu_s` outside math delimiters. The v2.5 semantic gate and all v2.4 visual-integrity protections remain mandatory.
 
 ## Stability rules
 

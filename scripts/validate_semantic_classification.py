@@ -14,6 +14,11 @@ DERIVE = importlib.util.module_from_spec(_spec)
 assert _spec.loader is not None
 _spec.loader.exec_module(DERIVE)
 
+_difficulty_spec = importlib.util.spec_from_file_location("validate_difficulty", SCRIPT_DIR / "validate_difficulty.py")
+DIFFICULTY = importlib.util.module_from_spec(_difficulty_spec)
+assert _difficulty_spec.loader is not None
+_difficulty_spec.loader.exec_module(DIFFICULTY)
+
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 KNOWLEDGE_ROLES = {"required", "supporting", "extension"}
 MODEL_ROLES = {"primary", "secondary"}
@@ -226,15 +231,7 @@ def validate_question(q: dict, idx: dict, reference: dict, strict: bool) -> list
         seen_skills.add(sid)
 
     difficulty = c.get("difficulty")
-    if not isinstance(difficulty, dict):
-        errors.append(f"{qid}: difficulty must be an object")
-    else:
-        level = difficulty.get("level")
-        if not isinstance(level, int) or level not in {1,2,3,4,5}:
-            errors.append(f"{qid}: difficulty.level must be an integer 1-5")
-        drivers = difficulty.get("drivers")
-        if not isinstance(drivers, list) or not drivers or not all(_nonempty(v) for v in drivers):
-            errors.append(f"{qid}: difficulty.drivers must be a non-empty string array")
+    errors.extend(f"{qid}: {error}" for error in DIFFICULTY.validate_difficulty(difficulty, strict=strict))
 
     confidence = c.get("confidence")
     if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not (0 <= float(confidence) <= 1):
@@ -259,7 +256,7 @@ def validate_question(q: dict, idx: dict, reference: dict, strict: bool) -> list
             "knowledge_points": [str(v.get("name")) for v in kp if isinstance(v, dict) and v.get("name")],
             "solution_models": [str(v.get("name")) for v in models if isinstance(v, dict) and v.get("name")],
             "skills": [str(v.get("id")) for v in skills if isinstance(v, dict) and v.get("id")],
-            "difficulty": (difficulty or {}).get("level") if isinstance(difficulty, dict) else None,
+            "difficulty": DERIVE.difficulty_level(difficulty),
         }
         for field, value in expected.items():
             if q.get(field) != value:

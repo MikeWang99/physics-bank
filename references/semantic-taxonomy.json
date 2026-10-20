@@ -156,14 +156,38 @@
     }
   ],
   "difficulty_rubric": {
-    "1": "Direct recall or one-step substitution after the model is explicitly given",
-    "2": "Routine application with one standard model and limited setup",
-    "3": "Requires nontrivial model/representation selection or a short multi-step chain",
-    "4": "Requires combining multiple models/constraints, hidden relationships, or substantial algebraic reasoning",
-    "5": "Competition-level synthesis with multiple non-obvious modeling decisions, novel transfer, or extended derivation"
+    "L0": "Rejected quality state only; excluded from usable difficulty tiers",
+    "L1": "Fundamental: direct recall, recognition or a single concept",
+    "L2": "Direct Application: familiar law applied directly with minimal strategy selection",
+    "L3": "Standard Problem Solving: independently organize familiar linked steps",
+    "L4": "Advanced Problem Solving: complex combinations of standard models or states without a substantive nonroutine insight",
+    "L5": "Introductory Competition: a substantive non-obvious breakthrough, then a mostly standard finish",
+    "L6": "Advanced Competition: deep nonstandard reasoning remains after a local initial hint",
+    "L7": "Elite Olympiad: highly creative modeling, insight or rigorous argument beyond standard competition methods"
   },
   "confidence": {
     "review_below": 0.75,
     "description": "Overall classification confidence from 0 to 1; low confidence requires manual semantic review"
+  },
+  "difficulty_contract": {
+    "rubric_id": "pocket-cosmos-timbad",
+    "rubric_version": "1.0",
+    "full_reference": "timbad-difficulty-rubric.md",
+    "integration_reference": "difficulty-assessment.md",
+    "dimensions": {
+      "T": "TARGET",
+      "I": "INFORMATION",
+      "M": "MODEL",
+      "B": "BRIDGE",
+      "A": "ANALYZE",
+      "D": "DOUBLE CHECK"
+    },
+    "dimension_scores": [
+      0,
+      1,
+      2
+    ],
+    "overall_level_is_sum": false,
+    "legacy_levels_require_reassessment": true
   }
 }

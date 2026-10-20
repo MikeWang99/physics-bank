@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from difficulty_fixtures import rating
 
 ROOT = Path(__file__).parents[1]
 PUB = ROOT / "skills" / "physics-bank-web-publisher" / "scripts"
@@ -67,7 +68,7 @@ def classification():
         "knowledge_points": [{"name": "Net force determines acceleration", "role": "required", "evidence": "Required by the question."}],
         "solution_models": [{"name": "Newton's second law", "kind": "governing_law", "role": "primary", "evidence": "Bridges force to acceleration."}],
         "skills": [{"id": "model_selection", "evidence": "Select the force model."}],
-        "difficulty": {"level": 3, "drivers": ["requires model selection"]},
+        "difficulty": rating(),
         "confidence": 0.95,
         "review": {"reviewed": True, "method": "model-semantic-analysis"},
         "derived_fields_version": "1.0",

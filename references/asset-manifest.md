@@ -1,4 +1,6 @@
-# Question-bank schema and asset manifest · v2.7
+# Question-bank schema and asset manifest · v2.8
+
+The compact example below illustrates an **unrated draft**: the question's visual options still need inspection. Use [difficulty-assessment.md](difficulty-assessment.md) for an APPROVED TIMBAD audit; usable levels are L1–L7. This example cannot pass strict publication until review is complete.
 
 Paths are relative to the bundle root. The schema keeps text provenance, source year, visual provenance, and visual-choice ownership explicit.
 
@@ -23,7 +25,7 @@ Paths are relative to the bundle root. The schema keeps text provenance, source 
       "answer": {"text": null, "label": null, "evidence": "not-provided"},
       "classification": {
         "schema": "physics-question-classification/v1",
-        "status": "reviewed",
+        "status": "review",
         "curriculum": {
           "course_id": "fma",
           "unit_id": "kinematics",
@@ -58,11 +60,69 @@ Paths are relative to the bundle root. The schema keeps text provenance, source 
           }
         ],
         "difficulty": {
-          "level": 2,
-          "drivers": ["routine interpretation of one standard representation"]
+          "rubric_id": "pocket-cosmos-timbad",
+          "rubric_version": "1.0",
+          "level": null,
+          "overall_level": null,
+          "review_status": "NEEDS_REVIEW",
+          "rejection_reason": null,
+          "question_quality_flags": [],
+          "drivers": [
+            "Visual options have not yet been inspected."
+          ],
+          "overall_reason": "",
+          "boundary_reason": "",
+          "timbad": {
+            "T": {
+              "score": null,
+              "rationale": "",
+              "evidence": ""
+            },
+            "I": {
+              "score": null,
+              "rationale": "",
+              "evidence": ""
+            },
+            "M": {
+              "score": null,
+              "rationale": "",
+              "evidence": ""
+            },
+            "B": {
+              "score": null,
+              "rationale": "",
+              "evidence": ""
+            },
+            "A": {
+              "score": null,
+              "rationale": "",
+              "evidence": ""
+            },
+            "D": {
+              "score": null,
+              "rationale": "",
+              "evidence": ""
+            }
+          },
+          "primary_bottleneck": "NONE",
+          "secondary_bottleneck": "NONE",
+          "key_insights": [],
+          "insight_depth": "NONE",
+          "solution_outline": [],
+          "final_answer": null,
+          "topic": "Motion graphs",
+          "subtopic": "Graph interpretation",
+          "prerequisites": [],
+          "key_skills": [],
+          "math_tools": [],
+          "rating_confidence": "LOW",
+          "needs_human_review": true,
+          "review_notes": "Inspect all option graphs before independently solving and rating.",
+          "assessed_at": null,
+          "reviewer": null
         },
-        "confidence": 0.95,
-        "review": {"reviewed": true, "method": "model-semantic-analysis"},
+        "confidence": 0.5,
+        "review": {"reviewed": false, "method": "pending-visual-option-review"},
         "derived_fields_version": "1.0"
       },
       "course": "F=ma",
@@ -72,7 +132,7 @@ Paths are relative to the bundle root. The schema keeps text provenance, source 
       "knowledge_points": ["Graph slope/shape encodes a physical relationship"],
       "solution_models": ["Graph representation relationship"],
       "skills": ["graph_interpretation"],
-      "difficulty": 2,
+      "difficulty": null,
       "asset_ids": [
         "fma-2016-q005-choice-A-01",
         "fma-2016-q005-choice-B-01"
@@ -80,8 +140,8 @@ Paths are relative to the bundle root. The schema keeps text provenance, source 
       "layout_blocks": [],
       "layout_review": null,
       "extraction": {"method": "pdf-text-layer", "text_reviewed": true, "confidence": 0.98},
-      "requires_manual_review": false,
-      "review_reasons": []
+      "requires_manual_review": true,
+      "review_reasons": ["semantic_classification_uncertain"]
     }
   ]
 }

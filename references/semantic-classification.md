@@ -114,11 +114,78 @@ Each final question contains:
       }
     ],
     "difficulty": {
+      "rubric_id": "pocket-cosmos-timbad",
+      "rubric_version": "1.0",
       "level": 3,
+      "overall_level": "L3",
+      "review_status": "APPROVED",
+      "rejection_reason": null,
+      "question_quality_flags": [],
       "drivers": [
-        "requires model selection before calculation",
-        "requires more than direct substitution"
-      ]
+        "Independently organize force decomposition and acceleration equations."
+      ],
+      "overall_reason": "Force decomposition and Newton's law form a standard multistep route.",
+      "boundary_reason": "Requires organizing steps beyond substitution; no complex model combination.",
+      "timbad": {
+        "T": {
+          "score": 0,
+          "rationale": "Acceleration is explicitly requested.",
+          "evidence": "Find acceleration."
+        },
+        "I": {
+          "score": 0,
+          "rationale": "Angle and smooth surface are explicit.",
+          "evidence": "Smooth incline at theta."
+        },
+        "M": {
+          "score": 1,
+          "rationale": "Choose the along-slope axis.",
+          "evidence": "Gravity and normal act on the block."
+        },
+        "B": {
+          "score": 1,
+          "rationale": "Resolve gravity then apply Newton's law.",
+          "evidence": "mg sin(theta) = ma."
+        },
+        "A": {
+          "score": 0,
+          "rationale": "Cancel mass.",
+          "evidence": "a = g sin(theta)."
+        },
+        "D": {
+          "score": 0,
+          "rationale": "Check units and direction.",
+          "evidence": "Acceleration points downhill."
+        }
+      },
+      "primary_bottleneck": "M",
+      "secondary_bottleneck": "B",
+      "key_insights": [],
+      "insight_depth": "NONE",
+      "solution_outline": [
+        "Resolve gravity along slope; use mg sin(theta) = ma.",
+        "Check downhill acceleration and units."
+      ],
+      "final_answer": "a = g sin(theta)",
+      "topic": "Dynamics",
+      "subtopic": "Inclined planes",
+      "prerequisites": [
+        "Newton's second law",
+        "Force components"
+      ],
+      "key_skills": [
+        "Free Body Diagram",
+        "Force Decomposition"
+      ],
+      "math_tools": [
+        "Trigonometry",
+        "Algebra"
+      ],
+      "rating_confidence": "HIGH",
+      "needs_human_review": false,
+      "review_notes": "",
+      "assessed_at": null,
+      "reviewer": null
     },
     "confidence": 0.91,
     "review": {
@@ -174,9 +241,9 @@ Use only IDs defined in `references/semantic-taxonomy.json`. Do not invent near-
 
 ## Difficulty
 
-Difficulty is 1–5 and follows the reference rubric. Judge the **required solution path**, not text length, arithmetic ugliness, or whether the question looks intimidating.
+Difficulty follows the **Pocket Cosmos TIMBAD rubric v1.0**, integrated in physics-bank v2.8. Read [difficulty-assessment.md](difficulty-assessment.md) and the complete [timbad-difficulty-rubric.md](timbad-difficulty-rubric.md) before rating. Usable levels are L1–L7; L0 is rejection, and null means not yet rateable. Six dimension scores are independent 0–2 diagnostics, never a sum-to-level formula.
 
-Every difficulty must include at least one concrete driver.
+The JSON above illustrates the record structure using a standard incline route, not a newly calibrated anchor. Apply the full rubric to the actual complete question. Independent solution evidence stays inside the difficulty audit, separate from source-faithful question.answer. Strict publication requires an APPROVED rating with no unresolved human review. Legacy five-level records require reassessment, not numeric conversion.
 
 ## Evidence and confidence
 
