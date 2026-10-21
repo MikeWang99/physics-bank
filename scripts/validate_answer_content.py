@@ -28,6 +28,7 @@ def main() -> int:
             errors.append("Non-object question")
         else:
             errors.extend(MOD.validate_answer_content(question, asset_index, strict=True))
+            errors.extend(MOD.validate_answer_visual_review(question, asset_index, args.questions.parent, strict=True))
     result = {"status": "ok" if not errors else "error", "errors": errors, "question_count": len(questions)}
     if args.report:
         args.report.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
