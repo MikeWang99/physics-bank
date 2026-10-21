@@ -259,7 +259,7 @@ class AnswerExtractionTests(unittest.TestCase):
             root=Path(tmp)
             q,a,_=worked_source(root)
             image_path=root/"assets"/"source"/"worked-image.png"
-            image=Image.new("RGB",(600,400),"white")
+            image=Image.new("RGB",(1200,800),"white")
             draw=ImageDraw.Draw(image)
             draw.rectangle((180,185,360,315),outline="black",width=3)
             image.save(image_path)
