@@ -1,4 +1,4 @@
-# Question-bank schema and asset manifest · v2.8
+# Question-bank schema and asset manifest · v2.9
 
 The compact example below illustrates an **unrated draft**: the question's visual options still need inspection. Use [difficulty-assessment.md](difficulty-assessment.md) for an APPROVED TIMBAD audit; usable levels are L1–L7. This example cannot pass strict publication until review is complete.
 
@@ -309,3 +309,8 @@ Answer assets require source document file, 1-based source page and PDF-coordina
 The untouched original answer page remains in `assets/source` as the audit source. Any omitted signature/watermark/header must be recorded under `answer.excluded_non_instructional` with `kind`, `source_bbox` and an explicit `reason`. If a mark overlaps explanatory information, retain it or flag manual review, never erase physics content.
 
 See `references/answer-extraction.md` for the extraction protocol.
+
+
+## Worked-answer source vision gate · v2.9
+
+New `answer.kind="worked_solution"` records must carry the whole-answer `answer.source.bbox` and a source-SHA-bound `answer.visual_review`. The review confirms instructional text/math/diagrams and omission safety and is independent of the separate SHA seals on cropped answer figures. See `references/answer-extraction.md` for the review-sheet rendering and sealing commands. Key-only records retain a bare label with no generated instructional prose.
