@@ -3,7 +3,7 @@ name: physics-bank
 description: Use when building or reviewing physics question banks from exam PDFs, including source-faithful text and answer extraction, visual assets, curriculum classification, or Pocket Cosmos TIMBAD L1–L7 difficulty assessment.
 ---
 
-# Physics Bank v2.8
+# Physics Bank v2.9
 
 Build a reusable, auditable question bank. The governing rule is **source fidelity first**: the model may enrich metadata, but it must not silently repair, shorten, paraphrase, merge, or guess source text, source metadata, or visual option content.
 
@@ -57,7 +57,7 @@ Never infer omitted clauses from physics knowledge. If a symbol, sentence, or ex
 
 Create stable final IDs, preserve canonical year metadata, attach answer evidence, and normalize mathematical notation to canonical `markdown+latex`. Missing official answers remain `not-provided`; do not solve merely to fill the answer field.
 
-### B0. Source-faithful answer extraction — mandatory in v2.7
+### B0. Source-faithful answer extraction — mandatory in v2.9
 
 **Always distinguish the answer source from the solution content students should see.**
 
@@ -67,6 +67,8 @@ Create stable final IDs, preserve canonical year metadata, attach answer evidenc
 - If the answer itself is missing or ambiguous, use `not-provided` and manual review rather than guessing.
 
 Full schema, source-fidelity boundaries, and examples: `references/answer-extraction.md`.
+
+For every new worked source, visually inspect the unchanged source and a rendered answer review sheet, then seal `answer.visual_review` with the exact original source SHA-256, page and whole-answer bbox. Never declare visual review based only on OCR or a generated thumbnail. Keep uncertain symbols/signatures in manual review. The complete procedure and commands are in `references/answer-extraction.md`.
 
 Run the focused answer QA after building canonical answers:
 
@@ -159,11 +161,11 @@ Do **not** assign curriculum/topic/skill/difficulty tags yet. Semantic classific
 8. Reconstruct the original text/figure reading order in `question.layout_blocks`. Every figure block must carry a `source_anchor`; every stem/shared asset must appear exactly once.
 9. Compare the reconstructed order against the rendered source page. Only then set `layout_review.reviewed: true` on the question.
 
-### Worked-answer diagram pipeline · v2.7
+### Worked-answer diagram pipeline · v2.9
 
 When an official solution or user-provided answer image contains instructional diagrams, use the same source-page rendering and SHA-sealed review rules as stem/shared figures, but with **`role: "answer"`** and files under `assets/answers/<question-id>/`.
 
-Do not put signatures, publisher attributions or answer-key boilerplate into canonical `answer.text`; retain original source for audit and document excluded non-instructional regions. Use `answer.layout_blocks` (separate from question stem `layout_blocks`) to retain the original worked solution reading order. Text in a diagram must be preserved, not guessed.
+Do not put signatures, publisher attributions or answer-key boilerplate into canonical `answer.text`; retain original source for audit and document excluded non-instructional regions. An exclusion bbox must be inside the reviewed answer region and cannot overlap a retained instructional diagram; never erase ambiguous overlapping information. Use `answer.layout_blocks` (separate from question stem `layout_blocks`) to retain the original worked solution reading order. Text in a diagram must be preserved, not guessed.
 
 ### Visual choice pipeline — mandatory when any option contains an image
 
@@ -366,7 +368,7 @@ python "$SKILL_DIR/scripts/validate_semantic_classification.py" \
   --report question-bank/semantic-validation-report.json
 ```
 
-Do not present a bank as complete if validation fails. In v2.8 the semantic validator also enforces the TIMBAD record contract and publication review gates; numerical validation cannot establish that a physics rating is correct. In v2.7 strict validation additionally checks answer-key minimality, source-provenance isolation and source-sealed illustrated solutions; v2.6 strict validation rejects bare/unbalanced mathematical markup such as `U_K`, `v_0`, `x^2`, or `\mu_s` outside math delimiters. The v2.5 semantic gate and all v2.4 visual-integrity protections remain mandatory.
+Do not present a bank as complete if validation fails. In v2.8 the semantic validator also enforces the TIMBAD record contract and publication review gates; numerical validation cannot establish that a physics rating is correct. In v2.9 strict validation requires a source-SHA-bound worked-answer visual review, whole-answer bbox and safe noninstructional exclusions. In v2.7 strict validation additionally checks answer-key minimality, source-provenance isolation and source-sealed illustrated solutions; v2.6 strict validation rejects bare/unbalanced mathematical markup such as `U_K`, `v_0`, `x^2`, or `\mu_s` outside math delimiters. The v2.5 semantic gate and all v2.4 visual-integrity protections remain mandatory.
 
 ## Stability rules
 
@@ -375,6 +377,7 @@ Do not present a bank as complete if validation fails. In v2.8 the semantic vali
 - Never publish a question without a reviewed semantic classification that resolves against the bank taxonomy.
 - Never replace a label-only official answer with an invented explanation or source-attribution prose.
 - Never publish an answer diagram without the unchanged source, explicit answer-only placement and SHA-sealed visual review.
+- Never assert the full worked answer was visually checked unless the source plus contact sheet were actually inspected and the answer review seal matches source SHA and bbox.
 - Never allow signatures/watermarks to replace, obscure, or erase educational equations or labels.
 - Never publish LaTeX syntax, underscore subscripts, or caret superscripts as ordinary prose; encode them in `$...$` / `$$...$$`.
 - Never use only page screenshots as question content when readable text can be represented structurally.

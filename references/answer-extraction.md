@@ -1,4 +1,4 @@
-# Answer extraction contract · v2.7
+# Answer extraction contract · v2.9
 
 ## Two distinct source modes
 
@@ -69,3 +69,21 @@ python scripts/validate_answer_content.py question-bank/questions.json --assets 
 ## Web publisher
 
 The existing frontend supports a fixed single `solutionImage`, not arbitrary interleaved answer narrative. Publisher preserves the complete answer in `question_versions.metadata.physicsBank.answer` and the images as version-bound `question_assets.role=answer`; blocks unsupported complex answer layout by default. It never invents `Official answer: A.` for key-only answers.
+
+
+## Source-image visual review gate · v2.9
+
+Every newly created `worked_solution`, including image-only source explanations with no separate diagram, must record the original complete answer region in `answer.source.bbox` (PyMuPDF page coordinates). Preserve the untouched PDF/PNG/JPEG in `assets/source/`.
+
+1. Inspect the original answer page/image; distinguish correct option, genuine explanation and formulas, independent instructional figures, and irrelevant signatures/watermarks. Keep source and learner-facing content separate.
+2. Draw and inspect the review sheet. Green boxes indicate retained diagrams; orange boxes indicate non-instructional exclusions:
+
+   `python scripts/render_answer_review_sheet.py question-bank/questions.json --assets question-bank/assets.json --question-id <id> --output question-bank/review/answer.png --report question-bank/review/answer.json`
+
+3. Actually compare original and contact sheet. Verify no lost equations/units/diagram labels, correct math, correct figure order and authentic non-instructional exclusions.
+4. Only after inspection, seal using `python scripts/seal_answer_review.py question-bank/questions.json --assets question-bank/assets.json --question-id <id> --review-report question-bank/review/answer.json --confirm-complete-text --confirm-math --confirm-diagrams`; also supply `--confirm-exclusions` when omissions exist.
+5. Independently SHA-seal every cropped answer diagram using `seal_asset_review.py`.
+
+New `answer.visual_review` contains `reviewed`, `method`, `source_sha256`, `page`, `bbox`, `review_sheet_sha256`, `instructional_text_complete`, `equations_checked`, `diagrams_checked`, and `exclusions_checked`. The strict validator checks the original-source hash, page/bbox, included figure containment and exclusion non-overlap. Changing answer text, region, figure mapping, source file or contact sheet invalidates/requires repeating the review process.
+
+**Machine validation cannot prove that an AI understood the image or read every symbol.** Human/vision-model visual inspection is still required; unknown content remains in manual review. Never pretend `reviewed: true` is itself evidence of optical completeness. Legacy answers without `kind` remain readable.
