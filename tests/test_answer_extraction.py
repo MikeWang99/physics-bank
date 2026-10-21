@@ -76,7 +76,15 @@ def worked_source(root):
             {"type":"figure","asset_id":"q1-answer-01"},
             {"type":"text","text":"$F=ma$."}
         ],
-        "layout_review":{"reviewed":True,"method":"source-page-visual"}
+        "layout_review":{"reviewed":True,"method":"source-page-visual"},
+        "visual_review":{
+            "reviewed":True,"method":"original-source+review-sheet-visual",
+            "source_sha256":sha(source),"page":2,
+            "bbox":[150,160,420,340],
+            "instructional_text_complete":True,
+            "equations_checked":True,"diagrams_checked":True,
+            "exclusions_checked":True
+        }
     }
     q = base_question(answer)
     q["asset_ids"] = ["q1-answer-01"]
@@ -160,7 +168,7 @@ class AnswerExtractionTests(unittest.TestCase):
             root=Path(tmp)
             q,a,_=worked_source(root)
             q["answer"]["excluded_non_instructional"]=[
-                {"kind":"signature","source_bbox":[410,350,510,370],"reason":"Author name, not a diagram label"}
+                {"kind":"signature","source_bbox":[370,300,405,330],"reason":"Author name, not a diagram label"}
             ]
             qp,ap=write_bank(root,q,[a])
             self.assertEqual(VAL.validate(qp,ap,strict=True,require_text_review=True)["status"],"ok")
@@ -168,6 +176,103 @@ class AnswerExtractionTests(unittest.TestCase):
             qp,ap=write_bank(root,q,[a])
             errors=VAL.validate(qp,ap,strict=True,require_text_review=True)["errors"]
             self.assertTrue(any("requires reason" in e for e in errors),errors)
+
+    def test_modified_source_pdf_invalidates_visual_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            q,a,_=worked_source(root)
+            source=root/"assets"/"source"/"worked.pdf"
+            source.write_bytes(source.read_bytes()+b"\nchanged")
+            qp,ap=write_bank(root,q,[a])
+            errors=VAL.validate(qp,ap,strict=True,require_text_review=True)["errors"]
+            self.assertTrue(any("answer source changed after visual review" in e for e in errors), errors)
+
+    def test_visual_review_requires_complete_instructional_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            q,a,_=worked_source(root)
+            q["answer"]["visual_review"]["equations_checked"]=False
+            qp,ap=write_bank(root,q,[a])
+            errors=VAL.validate(qp,ap,strict=True,require_text_review=True)["errors"]
+            self.assertTrue(any("equations_checked" in e for e in errors), errors)
+
+    def test_signature_overlapping_answer_diagram_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            q,a,_=worked_source(root)
+            q["answer"]["excluded_non_instructional"]=[
+                {"kind":"signature","source_bbox":[250,230,280,260],
+                 "reason":"Signature appears over a force label; must not be omitted"}
+            ]
+            qp,ap=write_bank(root,q,[a])
+            errors=VAL.validate(qp,ap,strict=True,require_text_review=True)["errors"]
+            self.assertTrue(any("overlaps instructional answer diagram" in e for e in errors),errors)
+
+    def test_outside_source_region_omission_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            q,a,_=worked_source(root)
+            q["answer"]["excluded_non_instructional"]=[
+                {"kind":"signature","source_bbox":[500,600,550,630],"reason":"Outside answer"}
+            ]
+            qp,ap=write_bank(root,q,[a])
+            errors=VAL.validate(qp,ap,strict=True,require_text_review=True)["errors"]
+            self.assertTrue(any("outside answer.source.bbox" in e for e in errors),errors)
+
+    def test_missing_review_seal_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            q,a,_=worked_source(root)
+            del q["answer"]["visual_review"]
+            qp,ap=write_bank(root,q,[a])
+            errors=VAL.validate(qp,ap,strict=True,require_text_review=True)["errors"]
+            self.assertTrue(any("requires answer.visual_review" in e for e in errors),errors)
+
+    def test_review_sheet_and_seal_work_for_pdf_source(self):
+        import subprocess, sys
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            q,a,_=worked_source(root)
+            del q["answer"]["visual_review"]
+            qp,ap=write_bank(root,q,[a])
+            sheet=root/"answer-review.png"
+            report=root/"answer-review.json"
+            base=[sys.executable,str(ROOT/"scripts"/"render_answer_review_sheet.py"),
+                  str(qp),"--assets",str(ap),"--question-id","q1",
+                  "--output",str(sheet),"--report",str(report)]
+            subprocess.run(base,check=True,capture_output=True,text=True)
+            self.assertTrue(sheet.is_file())
+            self.assertEqual(json.loads(report.read_text())["source_sha256"],sha(root/"assets"/"source"/"worked.pdf"))
+            args=[sys.executable,str(ROOT/"scripts"/"seal_answer_review.py"),
+                  str(qp),"--assets",str(ap),"--question-id","q1",
+                  "--review-report",str(report),
+                  "--confirm-complete-text","--confirm-math","--confirm-diagrams"]
+            subprocess.run(args,check=True,capture_output=True,text=True)
+            bank=json.loads(qp.read_text())
+            self.assertTrue(bank["questions"][0]["answer"]["visual_review"]["reviewed"])
+            errors=VAL.validate(qp,ap,strict=True,require_text_review=True)["errors"]
+            self.assertEqual(errors,[])
+
+    def test_png_answer_source_supported_for_visual_review(self):
+        from PIL import Image, ImageDraw
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            q,a,_=worked_source(root)
+            image_path=root/"assets"/"source"/"worked-image.png"
+            image=Image.new("RGB",(600,400),"white")
+            draw=ImageDraw.Draw(image)
+            draw.rectangle((180,185,360,315),outline="black",width=3)
+            image.save(image_path)
+            a["source"]["file"]="assets/source/worked-image.png"
+            a["source"]["page"]=1
+            a["crop"]["review_source_sha256"]=sha(image_path)
+            q["answer"]["source"]["file"]="assets/source/worked-image.png"
+            q["answer"]["source"]["page"]=1
+            q["answer"]["visual_review"]["source_sha256"]=sha(image_path)
+            q["answer"]["visual_review"]["page"]=1
+            qp,ap=write_bank(root,q,[a])
+            errors=VAL.validate(qp,ap,strict=True,require_text_review=True)["errors"]
+            self.assertEqual(errors,[])
 
     def test_bare_latex_in_answer_layout_is_rejected(self):
         q=base_question({
