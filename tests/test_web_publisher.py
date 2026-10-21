@@ -250,7 +250,13 @@ class WebPublisherTests(unittest.TestCase):
                 ],
                 "source":{"file":"official-solutions.pdf","page":10},
                 "extraction":{"reviewed":True,"method":"source-page-visual"},
-                "layout_review":{"reviewed":True,"method":"source-page-visual"}
+                "layout_review":{"reviewed":True,"method":"source-page-visual"},
+                "visual_review":{
+                    "reviewed":True,"method":"original-source+review-sheet-visual",
+                    "source_sha256":"a"*64,"page":10,"bbox":[1,2,30,40],
+                    "instructional_text_complete":True,"equations_checked":True,
+                    "diagrams_checked":True,"exclusions_checked":True
+                }
             }
             (root/"questions.json").write_text(json.dumps(bank))
             data = json.loads((root/"assets.json").read_text())
@@ -266,6 +272,10 @@ class WebPublisherTests(unittest.TestCase):
             answer_asset = next(a for a in item["assets"] if a["role"]=="answer")
             self.assertEqual(answer_asset["metadata"]["slot"],"solutionImage")
             self.assertIn("answer-01", item["version"]["metadata"]["physicsBank"]["answer"]["asset_ids"])
+            self.assertEqual(
+                item["version"]["metadata"]["physicsBank"]["answer"]["visual_review"],
+                question["answer"]["visual_review"]
+            )
             self.assertEqual(item["version"]["metadata"]["practiceStep"]["solution"],"$F=ma$.")
 
     def test_complex_answer_layout_cannot_silently_lose_figures(self):
