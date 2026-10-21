@@ -398,6 +398,104 @@ def validate_answer_content(question: dict, asset_index: dict, strict: bool) -> 
     return errors
 
 
+
+def _bbox_inside(outer, inner, tol: float = 0.01) -> bool:
+    if not _valid_source_bbox(outer) or not _valid_source_bbox(inner):
+        return False
+    ox0, oy0, ox1, oy1 = map(float, outer)
+    ix0, iy0, ix1, iy1 = map(float, inner)
+    return (
+        ox0 - tol <= ix0 and oy0 - tol <= iy0
+        and ix1 <= ox1 + tol and iy1 <= oy1 + tol
+    )
+
+
+def _bbox_overlaps(a, b, tol: float = 0.01) -> bool:
+    if not _valid_source_bbox(a) or not _valid_source_bbox(b):
+        return False
+    ax0, ay0, ax1, ay1 = map(float, a)
+    bx0, by0, bx1, by1 = map(float, b)
+    return min(ax1, bx1) - max(ax0, bx0) > tol and min(ay1, by1) - max(ay0, by0) > tol
+
+
+def validate_answer_visual_review(question: dict, asset_index: dict, root: Path, strict: bool) -> list[str]:
+    """Validate provenance-bound visual review of source-provided worked solutions.
+
+    This is a machine-checkable *attestation*, not proof of OCR/physics accuracy.
+    Reviewing the original and the generated contact sheet remains mandatory.
+    """
+    qid = str(question.get("id") or "<missing-id>")
+    answer = question.get("answer")
+    if not isinstance(answer, dict) or answer.get("kind") != "worked_solution" or not strict:
+        return []
+    errors: list[str] = []
+    source = answer.get("source") or {}
+    if not isinstance(source, dict):
+        source = {}
+    source_file = str(source.get("file") or "")
+    source_page = source.get("page")
+    source_bbox = source.get("bbox")
+    review = answer.get("visual_review")
+    if not isinstance(review, dict):
+        return [f"{qid}: worked_solution requires answer.visual_review sealed against the unchanged answer source"]
+    if review.get("reviewed") is not True or not str(review.get("method") or "").strip():
+        errors.append(f"{qid}: answer.visual_review requires reviewed=true and method")
+    for field in ("instructional_text_complete", "equations_checked", "diagrams_checked"):
+        if review.get(field) is not True:
+            errors.append(f"{qid}: answer.visual_review.{field} must be confirmed")
+    if answer.get("excluded_non_instructional") and review.get("exclusions_checked") is not True:
+        errors.append(f"{qid}: answer.visual_review.exclusions_checked required when omitting marks")
+    if not _valid_source_bbox(source_bbox):
+        errors.append(f"{qid}: worked_solution requires answer.source.bbox for visual coverage")
+        return errors
+    if review.get("page") != source_page or not _bbox_equal(review.get("bbox"), source_bbox):
+        errors.append(f"{qid}: answer.visual_review page/bbox does not match answer.source")
+    recorded_hash = str(review.get("source_sha256") or "").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", recorded_hash):
+        errors.append(f"{qid}: answer.visual_review.source_sha256 must be a SHA-256 hex digest")
+    source_path = root / source_file if source_file and not Path(source_file).is_absolute() else Path(source_file)
+    if source_file and source_path.is_file():
+        if re.fullmatch(r"[0-9a-f]{64}", recorded_hash) and _sha256_file(source_path) != recorded_hash:
+            errors.append(f"{qid}: answer source changed after visual review (source_sha256 mismatch)")
+        try:
+            doc = fitz.open(source_path)
+            if not isinstance(source_page, int) or not 1 <= source_page <= doc.page_count:
+                errors.append(f"{qid}: answer.source.page is outside original answer source")
+            elif not _bbox_inside(list(doc[source_page - 1].rect), source_bbox):
+                errors.append(f"{qid}: answer.source.bbox extends outside original answer page")
+            doc.close()
+        except Exception as exc:
+            errors.append(f"{qid}: cannot inspect original answer source: {exc}")
+    else:
+        errors.append(f"{qid}: original answer source file is missing: {source_file!r}")
+    # Excluded marks may NEVER erase instructional answer diagrams, or lie on another page.
+    for idx, omission in enumerate(answer.get("excluded_non_instructional") or [], 1):
+        if not isinstance(omission, dict):
+            continue
+        box = omission.get("source_bbox")
+        if not _bbox_inside(source_bbox, box):
+            errors.append(f"{qid}: omitted mark #{idx} is outside answer.source.bbox")
+            continue
+        for aid in answer.get("asset_ids") or []:
+            asset = asset_index.get(str(aid)) or {}
+            a_source = asset.get("source") or {}
+            if a_source.get("file") != source_file or a_source.get("page") != source_page:
+                continue
+            if _bbox_overlaps(box, a_source.get("bbox")):
+                errors.append(
+                    f"{qid}: omitted mark #{idx} overlaps instructional answer diagram {aid}; "
+                    "manual review required, do not erase diagram content"
+                )
+    # Keep answer figures within the reviewed source region when they come from the same page.
+    for aid in answer.get("asset_ids") or []:
+        asset = asset_index.get(str(aid)) or {}
+        a_source = asset.get("source") or {}
+        if a_source.get("file") == source_file and a_source.get("page") == source_page:
+            if not _bbox_inside(source_bbox, a_source.get("bbox")):
+                errors.append(f"{qid}: answer diagram {aid} lies outside reviewed answer.source.bbox")
+    return errors
+
+
 def validate(questions_path: Path, assets_path: Path | None, strict: bool, require_text_review: bool) -> dict:
     root = questions_path.parent
     data = load_json(questions_path)
@@ -434,6 +532,7 @@ def validate(questions_path: Path, assets_path: Path | None, strict: bool, requi
         if not isinstance(q.get("answer"), dict):
             errors.append(f"{qid}: answer object is required")
         errors.extend(validate_answer_content(q, asset_index, strict))
+        errors.extend(validate_answer_visual_review(q, asset_index, root, strict))
         answer_source = (q.get("answer") or {}).get("source") if isinstance(q.get("answer"), dict) else None
         if strict and isinstance(answer_source, dict) and answer_source.get("file"):
             file_value = str(answer_source["file"])
