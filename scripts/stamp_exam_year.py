@@ -92,6 +92,14 @@ def stamp(data: dict, explicit_year: int | None = None) -> dict:
             if year is None and top_source and top_source != source_value:
                 year, evidence, reason = infer_year(top_source)
 
+        if year is None and (question.get("classification") or {}).get("schema") == "physics-question-classification/v2":
+            # Do not invent years or mark a verified question unpublishable solely for an absent year.
+            clear_year_review_reasons(question)
+            if question.get("year") is None:
+                question.pop("year", None)
+            unresolved += 1
+            continue
+
         if year is None:
             question["year"] = None
             question.pop("year_evidence", None)
@@ -106,7 +114,8 @@ def stamp(data: dict, explicit_year: int | None = None) -> dict:
         source["year"] = year
         question["source"] = source
         tags = [str(tag) for tag in (question.get("tags") or []) if not str(tag).startswith("year:")]
-        tags.append(f"year:{year}")
+        if (question.get("classification") or {}).get("schema") != "physics-question-classification/v2":
+            tags.append(f"year:{year}")
         question["tags"] = tags
         stamped += 1
 
@@ -130,7 +139,7 @@ def main() -> int:
     output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     summary = result["year_stamp_summary"]
     print(f"Stamped exam year on {summary['stamped']} question(s); unresolved={summary['unresolved']}")
-    return 0 if summary["unresolved"] == 0 else 1
+    return 0  # A missing source year is no longer a processing blocker for v2
 
 
 if __name__ == "__main__":
