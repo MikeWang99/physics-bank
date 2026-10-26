@@ -16,13 +16,19 @@ def validate(data: dict) -> dict:
     for question in questions:
         qid = str(question.get("id") or "<missing-id>")
         year = question.get("year")
-        if not isinstance(year, int) or not (1900 <= year <= 2099):
+        v2 = (question.get("classification") or {}).get("schema") == "physics-question-classification/v2"
+        if year is None and v2:
+            # Optional source metadata: absence alone is not a publication error.
+            if (question.get("source") or {}).get("year") is not None:
+                errors.append(f"{qid}: source.year exists but question.year is absent")
+            continue
+        if type(year) is not int or not (1900 <= year <= 2099):
             errors.append(f"{qid}: missing/invalid year")
             continue
 
         tags = [str(tag) for tag in (question.get("tags") or [])]
         expected = f"year:{year}"
-        if expected not in tags:
+        if expected not in tags and not v2:
             errors.append(f"{qid}: missing tag {expected}")
 
         source = question.get("source") if isinstance(question.get("source"), dict) else {}
@@ -31,7 +37,7 @@ def validate(data: dict) -> dict:
             errors.append(f"{qid}: source.year {source_year!r} does not match year {year}")
 
         evidence = question.get("year_evidence")
-        if not isinstance(evidence, dict) or not evidence.get("method") or evidence.get("value") in (None, ""):
+        if (not v2) and (not isinstance(evidence, dict) or not evidence.get("method") or evidence.get("value") in (None, "")):
             errors.append(f"{qid}: year_evidence is required")
 
     return {
