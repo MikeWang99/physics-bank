@@ -3,7 +3,7 @@ name: physics-bank
 description: Use when building or reviewing physics question banks from exam PDFs, including source-faithful text and answer extraction, visual assets, curriculum classification, or Pocket Cosmos TIMBAD L1–L7 difficulty assessment.
 ---
 
-# Physics Bank v2.9
+# Physics Bank v3.0 (candidate)
 
 Build a reusable, auditable question bank. The governing rule is **source fidelity first**: the model may enrich metadata, but it must not silently repair, shorten, paraphrase, merge, or guess source text, source metadata, or visual option content.
 
@@ -18,12 +18,12 @@ Create a `question-bank/` bundle containing:
 - `assets/choices/<question-id>/` with final reviewed **individual choice images** only.
 - `assets/answers/<question-id>/` with independent, source-reviewed **worked-answer diagrams** (when the answer source contains instructional graphics).
 - `extraction/raw_pages.json` and `extraction/question_drafts.json` as the audit trail.
-- `classification-taxonomy.json` defining the stable course → unit → topic → subtopic hierarchy for this bank.
-- Per-question `classification` objects using `physics-question-classification/v1`.
+- `knowledge-taxonomy.json`, a validated export of the pinned unified 936-node website taxonomy for v2. Legacy v1 banks retain `classification-taxonomy.json`.
+- Per-question `classification` objects using `physics-question-classification/v2` (v1 remains supported).
 
-Every published question must contain a canonical four-digit `year` and a matching `year:YYYY` tag.
+For v2, year is optional. Preserve historical years, provenance and IDs; do not generate required `year:YYYY` tags.
 
-Read `references/answer-extraction.md`, `references/text-extraction.md`, `references/math-normalization.md`, `references/asset-manifest.md`, `references/choice-assets.md`, `references/narrative-layout.md`, `references/semantic-classification.md`, and `references/semantic-taxonomy.json` before execution.
+Read `references/answer-extraction.md`, `references/text-extraction.md`, `references/math-normalization.md`, `references/asset-manifest.md`, `references/choice-assets.md`, `references/narrative-layout.md`, `references/knowledge-classification-v2.md`, `references/difficulty-assessment.md`, and `references/timbad-difficulty-rubric.md` (legacy v1 also requires the semantic references) before execution.
 
 ## Stage A — faithful extraction (mandatory; do not skip)
 
@@ -36,7 +36,7 @@ Read `references/answer-extraction.md`, `references/text-extraction.md`, `refere
      --id-prefix <stable-prefix>
    ```
 
-3. Stamp the exam year onto the drafts. If the source filename contains a unique year, let the script infer it. For opaque/ambiguous filenames, pass the known source year explicitly:
+3. Optionally record a **verified** exam year. Never infer a date merely to satisfy a schema. The existing script remains available for verified year and legacy v1 sources:
 
    ```bash
    python "$SKILL_DIR/scripts/stamp_exam_year.py" \
@@ -47,15 +47,15 @@ Read `references/answer-extraction.md`, `references/text-extraction.md`, `refere
    ```
 
 4. Inspect `question_drafts.json` and the rendered/source pages. Resolve every `requires_manual_review` item. If a PDF is scan-only or the text layer is corrupted, visually transcribe from the page image; record the method and keep the raw draft for comparison.
-5. Preserve `raw_source_text`, `source_pages`, original numbering, choices, shared context, and year metadata. Shared textual setup must be copied into each final question's `context` so every question is self-contained.
+5. Preserve `raw_source_text`, `source_pages`, original numbering, choices, shared context, and any known year metadata. Shared textual setup must be copied into each final question's `context` so every question is self-contained.
 6. Preserve source geometry. `raw_pages.json` line bboxes are evidence for reading order; every final stem/shared asset must later record its source `page` and semantic PDF-point `bbox`.
 7. Only after visual/text comparison set `extraction.text_reviewed: true`.
 
-Never infer omitted clauses from physics knowledge. If a symbol, sentence, or exam year cannot be established confidently from source evidence, keep the question in manual review instead of completing it from memory.
+Never infer omitted clauses from physics knowledge. Uncertain symbols/sentences require manual review; an absent year alone does not block v2 publication.
 
 ## Stage B — source-faithful normalization
 
-Create stable final IDs, preserve canonical year metadata, attach answer evidence, and normalize mathematical notation to canonical `markdown+latex`. Missing official answers remain `not-provided`; do not solve merely to fill the answer field.
+Create stable final IDs, preserve available year/source metadata, attach answer evidence, and normalize mathematical notation to canonical `markdown+latex`. Missing official answers remain `not-provided`; do not solve merely to fill the answer field.
 
 ### B0. Source-faithful answer extraction — mandatory in v2.9
 
@@ -119,7 +119,7 @@ The normal strict `validate_bank.py` gate also enforces the same rule.
 
 Stage B may normalize whitespace and mathematical notation but must preserve prose meaning and every physical condition. Compare final context/stem/choices against Stage A before publication.
 
-Do **not** assign curriculum/topic/skill/difficulty tags yet. Semantic classification happens only after the complete text and all relevant figures/visual choices have been reconstructed and reviewed.
+Do **not** assign knowledge UID/difficulty tags yet. Classification happens only after the complete text and all relevant figures/visual choices have been reconstructed and reviewed.
 
 ## Figure pipeline
 
@@ -245,103 +245,103 @@ Do not rely on downstream PDF generation to infer layout. `homework-pdf` already
 
 
 
-## Stage C — semantic classification gate · mandatory in v2.5
+## Stage C — Unified Knowledge UID classification · v3.0
 
-Classification is a dedicated model pass, not incidental metadata filling.
+**One authoritative knowledge tree; one primary UID per reviewed question.** Read
+references/knowledge-classification-v2.md, references/difficulty-assessment.md and
+the complete, unaltered references/timbad-difficulty-rubric.md before proceeding.
 
-### C1. Build the bank taxonomy once
+### C0. Pin and synchronize the authoritative taxonomy
 
-Create `question-bank/classification-taxonomy.json` using schema `physics-bank-curriculum-taxonomy/v1`.
+The ONLY taxonomy authoring source is MikeWang99/pocket-cosmos-online at
+src/data/pocket_cosmos_physics_taxonomy_v1.json. This repository pins the website
+commit, Git blob hash and taxonomy version in references/knowledge-taxonomy.lock.json.
+Do not create UIDs or maintain another manually edited tree. From a checkout of
+the pinned website commit, run:
 
-Authority order:
+    python "$SKILL_DIR/scripts/sync_knowledge_taxonomy.py" \
+      --input ../pocket-cosmos-online/src/data/pocket_cosmos_physics_taxonomy_v1.json \
+      --output question-bank/knowledge-taxonomy.json
 
-1. official syllabus/course structure supplied with the bank;
-2. user-provided taxonomy;
-3. stable competition/bank taxonomy;
-4. generic physics taxonomy only when no official structure exists.
+The sync checks node identity, hierarchy, names, parent, counts, canonical UIDs,
+Git blob identity and version. Archive its verified export with the question bank.
+Taxonomy changes require a separate, explicitly reviewed lock update.
 
-Use stable lowercase IDs. Do not let individual questions invent new spellings for the same Unit/Topic/Subtopic.
+### C1. Establish reliable origin before reading a PDF
 
-### C2. Read the complete question before classifying
+Require an explicit, sourced document-level source_system (ap-physics-1,
+ap-physics-2, ap-c-mech, ap-c-em, igcse, a-level, bpho, physics-bowl, competition).
+For generic competition preserve the exact contest in source_event (e.g. fma).
+A single-source PDF gives all questions that source_system; mixed collections
+require per-question verified origin. Unknown origin => needs_review, never guess.
+Source origin is independent of difficulty, UID and course suitability.
 
-For every question, inspect:
+For new v2 questions source year is OPTIONAL. Do not invent an unverified year
+or generate a mandatory year:YYYY tag. Preserve all already known source years,
+source_refs, question IDs and immutable version history.
 
-- `context`;
-- `stem`;
-- all choices;
-- every stem/shared figure;
-- visual answer choices when they contain physics information.
+### C2. Full solution and candidate analysis, never keyword-only
 
-Do not classify from keywords or the printed object alone.
+Classify only AFTER text, context, all choices, mathematics, figures and choice
+images are compared to the source. Independently solve to identify the full
+required concept set and latest required prerequisite. Save concise audit facts
+in classification.physics_analysis (required_concepts, solution_summary,
+latest_required_reason) without hidden chain-of-thought.
 
-### C3. Produce structured classification
+Search real UIDs by running:
 
-Write `question.classification` using `physics-question-classification/v1`.
+    python "$SKILL_DIR/scripts/search_knowledge_nodes.py" \
+      --taxonomy question-bank/knowledge-taxonomy.json \
+      --query "circular motion energy"
 
-The model must identify:
+That script retrieves candidates; it does NOT perform validated physics
+classification. Compare a few real candidate nodes by target, complete solution
+coverage, later integrated prerequisites, specificity and counterevidence.
+Circular Motion + Energy generally belongs to the appropriate later integrated
+node, NOT basic Circular Motion. Examine collisions/momentum and other chapters
+where applicable.
 
-- curriculum mapping: `course_id / unit_id / topic_id / subtopic_ids`;
-- controlled `physics_domain`;
-- `primary_topic` and optional `secondary_topics`;
-- concrete `knowledge_points`;
-- `solution_models`: the laws/definitions/constraints/conservation relations/etc. that bridge givens to unknowns;
-- controlled `skills`;
-- Pocket Cosmos TIMBAD difficulty: usable levels L1–L7, six dimensions T/I/M/B/A/D (0–2 each), and an auditable review record;
-- overall confidence;
-- short evidence for each semantic judgment.
+### C3. Independent classification review and rejection
 
-A topic is primary only when it organizes the solution. Do not tag `friction`, `circular motion`, `energy`, etc. merely because the corresponding word/object appears in the stem.
+Record exactly one real primary_knowledge_uid, status, confidence, candidate
+decisions/reasons and taxonomy version + SHA256. Independent review must revisit
+the physics, look for cross-chapter errors, and record review.reviewed, method,
+initial_uid, independent_uid, agreement and cross_chapter_checked.
 
-Do not save hidden chain-of-thought. Save concise audit evidence such as:
+Disagreement, missing crucial source content, absent appropriate node, or
+insufficient evidence => status needs_review, with reason, candidates and
+proposed missing topic in an independent classification-review.json audit file.
+Do not force a valid but wrong UID. Do not auto-expand the authority. Confidence
+is NOT measured accuracy. Use educator-reviewed gold tests before accuracy claims.
 
-> The student must identify momentum conservation to determine the post-collision speed before any later energy calculation.
+### C4. Preserve complete TIMBAD v1.0 difficulty contract, unchanged
 
-### C3a. TIMBAD difficulty assessment · mandatory in v2.8
+Read both the full rubric and difficulty-assessment integration spec. Preserve
+six axes T/I/M/B/A/D (independent 0–2 ratings), all original audit fields,
+verified solution, boundary reasons, bottlenecks, insights, prerequisites, skills,
+review state, independent L1–L7 judgement. The axis total DOES NOT determine L.
+L0 is REJECTED, NEEDS_REVIEW may be unrated. Never map old 1–5 to L1–L7 and
+never change only numeric level on a previously approved audit. Independent
+solution notes are only for difficulty review, not student-facing official answers.
 
-Before rating any question, read **both** [the integration contract](references/difficulty-assessment.md) and the **complete** [Pocket Cosmos TIMBAD rubric v1.0](references/timbad-difficulty-rubric.md). The summary and taxonomy are navigation aids, not substitutes for the full rubric.
+### C5. Minimal v2 mirrors and dual-schema compatibility
 
-Use **L1–L7** for usable difficulty; **L0 means REJECTED**, not an easier tier. Missing material or an unreliable solution means `NEEDS_REVIEW` with `overall_level: null`. Score **T/I/M/B/A/D independently, 0–2 each**; never compute L from their sum.
+New schema physics-question-classification/v2 uses stable Question ID,
+source_system, one verified primary UID and the FULL TIMBAD difficulty record.
+Do not generate bank-specific unit/topic/subtopic trees, specialty_groups,
+specialty_ids or repetitive domain/topic/model/skill tags for v2. A v2
+approved difficulty emits numeric 1–7; rejected, unresolved and unrated emit null.
+Keep teacher-owned custom tags and all historical evidence.
 
-After quality checks, establish and verify a reliable independent solution **before** final rating. Save only concise audit evidence in `classification.difficulty`: `rubric_id`, `rubric_version`, `review_status`, `overall_level`, numeric `level`, `timbad`, reasons/boundaries, bottlenecks, insights, prerequisites, math tools, confidence, and the short solution audit as defined in the integration contract. Read the full question and all relevant visuals; use the stated prerequisite baseline and a reasonably discoverable reliable solution. Do not infer difficulty from exam name, calculus, appearance, student errors or calculation length.
+    python "$SKILL_DIR/scripts/derive_semantic_tags.py" question-bank/questions.json
+    python "$SKILL_DIR/scripts/validate_semantic_classification.py" question-bank/questions.json \
+      --knowledge-taxonomy question-bank/knowledge-taxonomy.json --strict
 
-The independent `solution_outline` / `final_answer` belongs **only to the difficulty audit**. It must never fill or replace source-faithful `question.answer`, or become a student-facing worked solution. An unavailable official answer remains `not-provided`; disagreement with a supplied key requires review, without silently correcting the source.
-
-Assess multipart questions per part first; any aggregate needs evidence of its highest substantive demand, not an automatic uplift. L4–L7 require explicit neighboring-level boundaries; L5–L7 require substantive key insights. LOW confidence, missing evidence or unresolved reviewer disagreement requires human review and blocks strict publication.
-
-Old 1–5 records need fresh assessment against the complete rubric; **there is no numeric conversion**. Non-strict validation keeps legacy records readable; strict publication requires the new reviewed audit. The top-level numeric `difficulty` remains a derived L1–L7 search mirror; rejected/pending records derive null and no difficulty tag.
-
-### C4. Derive searchable fields and tags
-
-After classification, run:
-
-```bash
-python "$SKILL_DIR/scripts/derive_semantic_tags.py" \
-  question-bank/questions.json \
-  --taxonomy question-bank/classification-taxonomy.json
-```
-
-`classification` is canonical. The script derives the compatibility/search fields:
-
-- `course`
-- `unit`
-- `topic`
-- `subtopics`
-- `knowledge_points`
-- `solution_models`
-- `skills`
-- `difficulty`
-- prefixed `tags`
-
-Do not manually maintain derived semantic tags.
-
-### C5. Semantic review behavior
-
-If classification confidence is below the reference threshold, the taxonomy mapping is ambiguous, or the relevant figure/text is uncertain:
-
-- set `classification.status: "review"`;
-- set `classification.review.reviewed: false`;
-- add `semantic_classification_uncertain` to `review_reasons`;
-- keep the question out of strict publication until reviewed.
+Legacy v1 banks still use their original classification-taxonomy.json, derivation
+and validation contract. When a bundle mixes v1/v2, pass BOTH --taxonomy
+and --knowledge-taxonomy arguments. Never silently convert v1 topic IDs into a
+knowledge UID. Full PDF/text/math/asset/answer/TIMBAD strict gates remain
+mandatory for both schemas.
 
 ## Final hard gate
 
@@ -363,7 +363,7 @@ python "$SKILL_DIR/scripts/validate_year_metadata.py" \
 
 python "$SKILL_DIR/scripts/validate_semantic_classification.py" \
   question-bank/questions.json \
-  --taxonomy question-bank/classification-taxonomy.json \
+  --knowledge-taxonomy question-bank/knowledge-taxonomy.json \
   --strict \
   --report question-bank/semantic-validation-report.json
 ```
@@ -373,8 +373,8 @@ Do not present a bank as complete if validation fails. In v2.8 the semantic vali
 ## Stability rules
 
 - Never skip Stage A and jump directly from PDF to polished JSON.
-- Never publish a question without verified year metadata.
-- Never publish a question without a reviewed semantic classification that resolves against the bank taxonomy.
+- Never invent a year; missing year alone does not block v2.
+- Never publish v2 without one reviewed UID resolving against the pinned website taxonomy; v1 still resolves against its bank taxonomy.
 - Never replace a label-only official answer with an invented explanation or source-attribution prose.
 - Never publish an answer diagram without the unchanged source, explicit answer-only placement and SHA-sealed visual review.
 - Never assert the full worked answer was visually checked unless the source plus contact sheet were actually inspected and the answer review seal matches source SHA and bbox.
@@ -394,5 +394,5 @@ Do not present a bank as complete if validation fails. In v2.8 the semantic vali
 - Never let a downstream renderer guess whether a figure belongs before or after a sentence.
 - Never classify a question from keywords alone; read the full text and relevant figures first.
 - Never treat a visible object/topic word as the primary topic unless it actually organizes the solution.
-- Never hand-edit derived semantic tags after classification; regenerate them from the canonical classification object.
-- Re-running on the same PDF should preserve stable IDs, source boundaries, year metadata, choice-asset slots, source bboxes, and reviewed layout order unless human review intentionally corrects them.
+- Never hand-edit generated tags; v2 retains only the primary UID and approved difficulty mirror while preserving custom labels.
+- Re-running on the same PDF should preserve stable IDs, source boundaries, existing year metadata, choice-asset slots, source bboxes, and reviewed layout order unless human review intentionally corrects them.
