@@ -95,10 +95,20 @@ def validate(bundle: dict, bank_root: Path) -> list[str]:
             errors.append(f"{qid}: metadata.formatVersion must be 2")
         if (meta.get("practiceSet") or {}).get("id") != ps.get("id"):
             errors.append(f"{qid}: metadata.practiceSet.id mismatch")
+        step = meta.get("practiceStep") if isinstance(meta.get("practiceStep"), dict) else {}
         pb = meta.get("physicsBank")
         if not isinstance(pb, dict) or pb.get("schema") != "physics-bank-web-publish/v1":
             errors.append(f"{qid}: metadata.physicsBank must preserve publisher provenance")
         else:
+            c = pb.get("classification") or {}
+            if c.get("schema") == "physics-question-classification/v2":
+                uid = c.get("primary_knowledge_uid")
+                if not uid or pb.get("primaryKnowledgeUid") != uid or step.get("primaryKnowledgeUid") != uid:
+                    errors.append(f"{qid}: v2 primary knowledge UID missing or not preserved in runtime metadata")
+                if not pb.get("sourceSystem") or step.get("sourceSystem") != pb.get("sourceSystem"):
+                    errors.append(f"{qid}: source system lost during publication")
+                if not (pb.get("knowledgeTaxonomy") or {}).get("sha256"):
+                    errors.append(f"{qid}: missing taxonomy hash provenance")
             if "classification" not in pb:
                 errors.append(f"{qid}: physicsBank.classification missing")
             if "layoutBlocks" not in pb:

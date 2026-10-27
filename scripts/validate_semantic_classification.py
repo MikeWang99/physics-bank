@@ -6,9 +6,12 @@ import argparse
 import importlib.util
 import json
 import re
+import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 _spec = importlib.util.spec_from_file_location("derive_semantic_tags", SCRIPT_DIR / "derive_semantic_tags.py")
 DERIVE = importlib.util.module_from_spec(_spec)
 assert _spec.loader is not None
@@ -18,6 +21,9 @@ _difficulty_spec = importlib.util.spec_from_file_location("validate_difficulty",
 DIFFICULTY = importlib.util.module_from_spec(_difficulty_spec)
 assert _difficulty_spec.loader is not None
 _difficulty_spec.loader.exec_module(DIFFICULTY)
+
+from knowledge_taxonomy import load_knowledge_taxonomy
+import validate_knowledge_classification as KNOWLEDGE
 
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 KNOWLEDGE_ROLES = {"required", "supporting", "extension"}
@@ -278,36 +284,49 @@ def validate_question(q: dict, idx: dict, reference: dict, strict: bool) -> list
     return errors
 
 
-def validate(questions_data: dict, taxonomy: dict, reference: dict, strict: bool = True) -> dict:
-    errors, idx = validate_taxonomy(taxonomy)
+def validate(questions_data: dict, taxonomy: dict | None, reference: dict,
+             strict: bool = True, knowledge_taxonomy: dict | None = None) -> dict:
     questions = questions_data.get("questions")
     if not isinstance(questions, list):
         raise ValueError("questions.json must contain a top-level questions array")
-    for q in questions:
-        if isinstance(q, dict):
-            errors.extend(validate_question(q, idx, reference, strict))
+    legacy = [q for q in questions if isinstance(q, dict) and (q.get("classification") or {}).get("schema") != KNOWLEDGE.SCHEMA]
+    modern = [q for q in questions if isinstance(q, dict) and (q.get("classification") or {}).get("schema") == KNOWLEDGE.SCHEMA]
+    errors = []
+    if legacy:
+        if not taxonomy:
+            errors.append("v1 questions require --taxonomy (legacy bank taxonomy)")
         else:
-            errors.append("questions array contains a non-object entry")
-    return {
-        "status": "ok" if not errors else "error",
-        "errors": errors,
-        "question_count": len(questions),
-    }
+            old_errors, idx = validate_taxonomy(taxonomy)
+            errors.extend(old_errors)
+            for q in legacy:
+                errors.extend(validate_question(q, idx, reference, strict))
+    if modern:
+        if knowledge_taxonomy is None:
+            errors.append("v2 questions require --knowledge-taxonomy from the pinned website source")
+        else:
+            for q in modern:
+                errors.extend(KNOWLEDGE.validate_question(q, knowledge_taxonomy, strict))
+    if len(legacy) + len(modern) != len(questions):
+        errors.append("questions array contains a non-object entry")
+    return {"status": "ok" if not errors else "error", "errors": errors,
+            "question_count": len(questions), "v1_count": len(legacy), "v2_count": len(modern)}
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("questions", type=Path)
-    p.add_argument("--taxonomy", required=True, type=Path)
+    p.add_argument("--taxonomy", type=Path, help="bank taxonomy for v1")
+    p.add_argument("--knowledge-taxonomy", type=Path, help="pinned website taxonomy for v2")
     p.add_argument("--reference-taxonomy", type=Path, default=Path(__file__).parents[1] / "references" / "semantic-taxonomy.json")
     p.add_argument("--strict", action="store_true")
     p.add_argument("--report", type=Path)
     args = p.parse_args()
     result = validate(
         json.loads(args.questions.read_text(encoding="utf-8")),
-        json.loads(args.taxonomy.read_text(encoding="utf-8")),
+        json.loads(args.taxonomy.read_text(encoding="utf-8")) if args.taxonomy else None,
         json.loads(args.reference_taxonomy.read_text(encoding="utf-8")),
         strict=args.strict,
+        knowledge_taxonomy=load_knowledge_taxonomy(args.knowledge_taxonomy) if args.knowledge_taxonomy else None,
     )
     if args.report:
         args.report.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

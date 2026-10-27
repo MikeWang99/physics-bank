@@ -1,0 +1,9 @@
+{
+  "schema": "pocket-cosmos-knowledge-taxonomy-lock/v1",
+  "source_repo": "MikeWang99/pocket-cosmos-online",
+  "source_path": "src/data/pocket_cosmos_physics_taxonomy_v1.json",
+  "source_commit": "3c67e6722752df503d97f1e15bc7388a146290de",
+  "git_blob_sha1": "5703a6ff4dad48387c2be77e284712bd416be2df",
+  "taxonomy_version": "1.0.0-draft",
+  "expected_nodes": 936
+}

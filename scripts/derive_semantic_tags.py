@@ -113,6 +113,22 @@ def derive_question(question: dict, taxonomy: dict) -> dict:
     c = question.get("classification")
     if not isinstance(c, dict):
         return question
+    if c.get("schema") == "physics-question-classification/v2":
+        # v2 owns only the fixed UID, original source, and complete TIMBAD audit.
+        # Keep teacher labels and historical provenance (including year:YYYY).
+        for key in ("course", "unit", "topic", "subtopics", "knowledge_points", "solution_models", "skills"):
+            question.pop(key, None)
+        question["difficulty"] = difficulty_level(c.get("difficulty"))
+        question["tags"] = [str(tag) for tag in question.get("tags") or []
+                            if not any(str(tag).startswith(p) for p in GENERATED_PREFIXES)
+                            and not re.fullmatch(r"Difficulty\s+[1-7]", str(tag), flags=re.I)]
+        level = question["difficulty"]
+        if level is not None:
+            question["tags"].append(f"difficulty:{level}")
+        question["tags"] = list(dict.fromkeys(question["tags"]))
+        c["derived_fields_version"] = "2.0"
+        return question
+
     names = names_from_classification(c, taxonomy)
     question["course"] = names["course"]
     question["unit"] = names["unit"]
@@ -159,11 +175,13 @@ def derive(data: dict, taxonomy: dict) -> dict:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("questions", type=Path)
-    p.add_argument("--taxonomy", required=True, type=Path)
+    p.add_argument("--taxonomy", type=Path, help="v1 bank taxonomy; not needed for v2-only banks")
     p.add_argument("--output", type=Path)
     args = p.parse_args()
     data = json.loads(args.questions.read_text(encoding="utf-8"))
-    taxonomy = json.loads(args.taxonomy.read_text(encoding="utf-8"))
+    taxonomy = json.loads(args.taxonomy.read_text(encoding="utf-8")) if args.taxonomy else {}
+    if any(q.get("classification", {}).get("schema") == "physics-question-classification/v1" for q in data.get("questions", [])) and not args.taxonomy:
+        p.error("--taxonomy is required when v1 questions exist")
     derive(data, taxonomy)
     out = args.output or args.questions
     out.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -7,10 +7,17 @@ import hashlib
 import json
 import mimetypes
 import re
+import sys
 from pathlib import Path
 
+_BANK_SCRIPT_DIR = Path(__file__).resolve().parents[3] / "scripts"
+if str(_BANK_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_BANK_SCRIPT_DIR))
+from knowledge_taxonomy import load_knowledge_taxonomy
+from validate_knowledge_classification import validate_question as validate_knowledge_question
+
 SCHEMA = "pocket-cosmos-publish-bundle/v1"
-PUBLISHER_VERSION = "1.1.0"
+PUBLISHER_VERSION = "1.2.0-rc.1"
 ALLOWED_SYSTEMS = {
     "ap-physics-1", "ap-physics-2", "ap-c-mech", "ap-c-em",
     "igcse", "competition", "bpho", "a-level", "physics-bowl",
@@ -242,13 +249,23 @@ def asset_descriptor(bank_root: Path, asset: dict, practice_set_id: str, storage
 def compile_bank(bank_root: Path, config: dict) -> dict:
     questions_data = load_json(bank_root / "questions.json")
     assets_data = load_json(bank_root / "assets.json")
-    taxonomy = load_json(bank_root / "classification-taxonomy.json")
+    v1_taxonomy_path = bank_root / "classification-taxonomy.json"
+    taxonomy = load_json(v1_taxonomy_path) if v1_taxonomy_path.is_file() else {}
+    knowledge_taxonomy_path = bank_root / "knowledge-taxonomy.json"
+    knowledge_taxonomy = None
     questions = questions_data.get("questions")
     assets = assets_data.get("assets")
     if not isinstance(questions, list):
         raise ValueError("questions.json must contain questions[]")
     if not isinstance(assets, list):
         raise ValueError("assets.json must contain assets[]")
+    v2_present = any(isinstance(q, dict) and (q.get("classification") or {}).get("schema") == "physics-question-classification/v2" for q in questions)
+    if v2_present:
+        if not knowledge_taxonomy_path.is_file():
+            raise ValueError("v2 publication requires a pinned knowledge-taxonomy.json in the bank root")
+        knowledge_taxonomy = load_knowledge_taxonomy(knowledge_taxonomy_path)
+    if any((q.get("classification") or {}).get("schema") != "physics-question-classification/v2" for q in questions) and not taxonomy:
+        raise ValueError("v1 publishing requires classification-taxonomy.json")
 
     ps = config.get("practice_set")
     if not isinstance(ps, dict):
@@ -279,6 +296,14 @@ def compile_bank(bank_root: Path, config: dict) -> dict:
         qid = str(q.get("id") or "").strip()
         if not qid:
             raise ValueError(f"question at position {position} has no id")
+        classification = q.get("classification") or {}
+        is_v2 = classification.get("schema") == "physics-question-classification/v2"
+        if is_v2:
+            issues = validate_knowledge_question(q, knowledge_taxonomy, strict=True)
+            if issues:
+                raise ValueError(f"{qid}: v2 strict classification invalid: {'; '.join(issues)}")
+            if q["source_system"] != system:
+                raise ValueError(f"{qid}: source_system {q['source_system']} differs from practice_set.system {system}; use a matching source collection")
         choices = q.get("choices") if isinstance(q.get("choices"), list) else []
         mode = "multiple_choice" if choices else "structured"
         prompt = full_prompt(q)
@@ -315,8 +340,9 @@ def compile_bank(bank_root: Path, config: dict) -> dict:
                 for ch in choices if isinstance(ch, dict)
             ],
             "context": str(q.get("context") or ""),
-            "difficulty": q.get("difficulty"),
-            "specialtyTags": specialty_tags(q) if system == "competition" else [],
+            "difficulty": (classification["difficulty"]["level"] if is_v2 else q.get("difficulty")),
+            "specialtyTags": specialty_tags(q) if system == "competition" and not is_v2 else [],
+            **({"primaryKnowledgeUid": classification["primary_knowledge_uid"], "sourceSystem": q["source_system"]} if is_v2 else {}),
             "choiceLayout": str(rendering.get("choice_layout") or "stacked"),
             **answer_step,
         }
@@ -329,6 +355,10 @@ def compile_bank(bank_root: Path, config: dict) -> dict:
             "questionId": qid,
             "bankSchemaVersion": questions_data.get("schema_version"),
             "classification": q.get("classification"),
+            **({"primaryKnowledgeUid": classification["primary_knowledge_uid"],
+                "sourceSystem": q["source_system"],
+                "sourceEvent": q.get("source_event"),
+                "knowledgeTaxonomy": {"version": knowledge_taxonomy["version"], "sha256": knowledge_taxonomy["sha256"]}} if is_v2 else {}),
             "layoutBlocks": q.get("layout_blocks") or [],
             "layoutReview": q.get("layout_review"),
             "sourcePages": q.get("source_pages") or [],
@@ -497,7 +527,8 @@ def compile_bank(bank_root: Path, config: dict) -> dict:
         },
         "sourceBank": {
             "schemaVersion": questions_data.get("schema_version"),
-            "taxonomySchema": taxonomy.get("schema"),
+            "taxonomySchema": taxonomy.get("schema") or ("pocket-cosmos-unified-knowledge/v1" if v2_present else None),
+            **({"knowledgeTaxonomySha256": knowledge_taxonomy["sha256"]} if v2_present else {}),
             "questionCount": len(questions),
         },
         "questions": compiled,
