@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.0.0-rc.5 — 2026-11-09 (learner-facing fidelity gate)
+
+- Carries the source-figure, missing-image, and unsupported-assumption fidelity gate into the standalone Physics Bank source skill and strict validator.
+- Preserves verified chapter-wide instructions as provenance; a shared condition that applies to a question must be expressed naturally instead of copied verbatim as a repeated bracketed heading.
+- Adds regression coverage for Giancoli-style figure references, editorial figure descriptions, unsupported friction assumptions, and verified shared instructions.
+- The separate Web Publisher remains at 1.2.0-rc.2 because this release does not change publishing behavior. No website deployment or production question data is changed.
+
+## 3.0.0-rc.4 — 2026-11-06 (verified section-wide instructions)
+
+- Correct false positives from rc.3 when a physical condition is stated once in an original textbook section heading rather than repeated in every numbered question.
+- Preserve exact source-page heading and instruction evidence in reviewed `extraction.shared_source_instructions`; accept them only with verified positive page number and heading text, never from unreviewed generated metadata.
+- Add Giancoli GE §4-7 p. 102 (PDF p. 123) regression: `[Ignore friction.]` really is present as a shared instruction for Questions 20–34; avoid labeling it an AI hallucination. Keep it as a real physical assumption in standalone problem context.
+- Existing original figure-reference, missing owned figure and unverified assumption hard gates remain.
+
+## 3.0.0-rc.3 — 2026-11-06 (source fidelity hardening)
+
+- Prevent source textbook diagram numbers (e.g. Fig. 4–58), PDF/printed page citations and "Source figure description" editor notes from leaking into learner-facing question stems.
+- Reject source-referenced figures with no question-owned reviewed stem/shared figure asset, even when an overlapping source graphic is difficult to crop; quarantine for source review rather than accepting a text-only replacement.
+- Detect unsupported "Ignore friction", "Neglect air resistance", and related added physical assumptions when source transcriptions do not explicitly contain the qualifier.
+- Add independent Creator/Reviewer source-fidelity rules and focused validator regression tests (Giancoli-like Figure and friction examples).
+- Does not rewrite original source PDFs, change TIMBAD scoring, alter published banks or touch website storage. Repairs to previously published questions require separate audited question-version updates.
+
 ## 3.0.0-rc.2 — 2026-11-06 (feature branch, NOT production)
 
 - Requires separate live verification of Practice course-subtopic placement and
@@ -25,3 +47,4 @@
 - Companion website development PR required before launch. No production writes.
 - Accuracy still requires educator-labeled Gold Standard evaluation; no numeric
   classification accuracy claimed. See references/knowledge-classification-v2.md.
+

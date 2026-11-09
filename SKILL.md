@@ -3,7 +3,7 @@ name: physics-bank
 description: Use when building or reviewing physics question banks from exam PDFs, including source-faithful text and answer extraction, visual assets, curriculum classification, or Pocket Cosmos TIMBAD L1–L7 difficulty assessment.
 ---
 
-# Physics Bank v3.0 (candidate)
+# Physics Bank v3.0.0-rc.5 (candidate)
 
 Build a reusable, auditable question bank. The governing rule is **source fidelity first**: the model may enrich metadata, but it must not silently repair, shorten, paraphrase, merge, or guess source text, source metadata, or visual option content.
 
@@ -18,7 +18,7 @@ Create a `question-bank/` bundle containing:
 - `assets/choices/<question-id>/` with final reviewed **individual choice images** only.
 - `assets/answers/<question-id>/` with independent, source-reviewed **worked-answer diagrams** (when the answer source contains instructional graphics).
 - `extraction/raw_pages.json` and `extraction/question_drafts.json` as the audit trail.
-- `knowledge-taxonomy.json`, a validated export of the pinned unified 936-node website taxonomy for v2. Legacy v1 banks retain `classification-taxonomy.json`.
+- `knowledge-taxonomy.json`, a validated export of the currently pinned unified website taxonomy for v2. Its version, source commit, Git blob, and expected node count are defined by `references/knowledge-taxonomy.lock.json`; do not hardcode an older count. Legacy v1 banks retain `classification-taxonomy.json`.
 - Per-question `classification` objects using `physics-question-classification/v2` (v1 remains supported).
 
 For v2, year is optional. Preserve historical years, provenance and IDs; do not generate required `year:YYYY` tags.
@@ -52,6 +52,15 @@ Read `references/answer-extraction.md`, `references/text-extraction.md`, `refere
 7. Only after visual/text comparison set `extraction.text_reviewed: true`.
 
 Never infer omitted clauses from physics knowledge. Uncertain symbols/sentences require manual review; an absent year alone does not block v2 publication.
+
+### Learner-facing text and source conditions — required
+
+- Preserve original printed textbook figure IDs, PDF/printed page numbers, OCR artifacts, and production notes in `raw_source_text`, `source`, `extraction`, or the asset manifest. Do not put them in learner-visible `context`, `stem`, choices, or text layout blocks. The current Publisher displays `context + stem`; context is not private metadata.
+- If a source question points to a figure, match it by source page, printed figure ID, and original question identity. Attach that question's own reviewed `stem/shared` figure and place it exactly once in `layout_blocks`. In the learner copy, refer to “the diagram shown” when needed; do not leave a book-specific `Fig. 4–xx` reference.
+- Do not place labels such as `Source figure description` or `Source-derived diagram description` in learner text as a substitute for an image. If a figure cannot be isolated or faithfully reconstructed, mark the question `requires_manual_review` and keep it out of the publishable bank until the figure is resolved.
+- A chapter or section instruction can be a real physical condition, but proximity alone does not prove its scope. Verify the heading, page, and affected question range. Record its exact wording in `extraction.shared_source_instructions[]` with `source_heading`, positive `source_page`, and `reviewed: true`. When it changes the model and applies to a question, preserve that condition in learner-ready prose without mechanically repeating the heading's bracketed label, such as `[Ignore friction.]`. Do not silently drop a required condition or infer one from the solution.
+- A condition stated in an individual question remains valid source content. Do not globally remove words such as `friction`, `frictionless`, `ignore`, or `neglect`; compare each condition with the question text and verified shared instructions.
+- Before setting `extraction.text_reviewed: true` and before independent acceptance, inspect the exact learner prompt the runtime will display (`context + stem`, choices, and figure order). The strict validator blocks source figure/page leaks, description labels, missing owned figures, unsupported physical assumptions, and verbatim copies of verified shared physical instructions; the independent Reviewer must still catch semantic changes the validator cannot recognize.
 
 ## Stage B — source-faithful normalization
 
@@ -396,3 +405,4 @@ Do not present a bank as complete if validation fails. In v2.8 the semantic vali
 - Never treat a visible object/topic word as the primary topic unless it actually organizes the solution.
 - Never hand-edit generated tags; v2 retains only the primary UID and approved difficulty mirror while preserving custom labels.
 - Re-running on the same PDF should preserve stable IDs, source boundaries, existing year metadata, choice-asset slots, source bboxes, and reviewed layout order unless human review intentionally corrects them.
+

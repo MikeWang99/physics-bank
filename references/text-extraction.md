@@ -19,6 +19,14 @@ Before publishing, compare the final question against `raw_source_text`/page ren
 
 For questions with stem/shared visuals, Stage A line bboxes and asset source bboxes must be used together to reconstruct `layout_blocks`. Do not flatten interleaved source prose and figures into "all text first, all images later".
 
+### Published learner text is not a textbook page citation
+
+The audit trail keeps the unchanged source statement, including `Fig. 4–58` and the printed page. The reusable learner's `context`/`stem` must **not** contain original numbered figure references, `See Fig...`, `Source figure description`, or PDF/printed page citations. Link that problem's own reviewed figure in the layout instead, without losing any numerical/physical condition. If the original figure cannot be faithfully isolated, quarantine the question for manual review rather than inventing a narrative stand-in.
+
+No physics assumptions may be introduced merely to make a solvable classroom exercise. An added `[Ignore friction.]`, `Neglect air resistance`, or “frictionless” condition requires explicit wording or a genuinely shared instruction in the source, recorded with page provenance. The reviewer checks the source's *actual* conditions, not what would be convenient for a solution.
+
+For a section-wide condition absent from each individual printed stem, record `extraction.shared_source_instructions: [{"text":"[Ignore friction.]","source_heading":"4-7 Newton's Laws and Vectors","source_page":123,"reviewed":true}]` **only after visual source-page confirmation** (Giancoli GE printed p. 102, PDF p. 123). A missing `reviewed`, `source_heading`, or `source_page` does not establish evidence. Keep the physical condition in standalone learner text/context rather than silently dropping it, but avoid repeatedly presenting raw editorial brackets when a natural, accurate standalone statement is possible.
+
 ## Hard gate
 
 Run:
@@ -30,3 +38,4 @@ python scripts/validate_bank.py question-bank/questions.json \
 ```
 
 A final bank is not publishable until this exits 0.
+
