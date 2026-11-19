@@ -5,6 +5,8 @@ description: Compile a validated physics-bank bundle into the Pocket Cosmos prac
 
 # Physics Bank Web Publisher v1.2
 
+Current candidate: **1.2.0-rc.3**. During `prepare`, the production API marks existing content-addressed image objects as reusable only after validating their stored size, SHA-256, and image signature. The client skips uploads for those paths; the atomic publish step still re-verifies every bundle image.
+
 Publish a finished `physics-bank` question bank into Pocket Cosmos. This is a **compiler/publisher**, not another extraction pipeline.
 
 The source of truth before publication is the validated physics-bank bundle. The source of truth after publication is Pocket Cosmos Supabase:
@@ -12,12 +14,11 @@ The source of truth before publication is the validated physics-bank bundle. The
 ```text
 physics-bank
 → compile
-→ publish bundle
-→ upload content-addressed assets
-→ atomic DB transaction
-→ verify Supabase
-→ verify /api/practice/sets/:id
-→ optional live visual check
+→ validate
+→ production API plan
+→ direct signed asset upload
+→ atomic API publish
+→ verify database result and live runtime
 ```
 
 ## Target architecture
@@ -150,7 +151,29 @@ python skills/physics-bank-web-publisher/scripts/validate_publish_bundle.py \
 
 This checks stable IDs, unique positions, content hashes, asset hashes/paths, current runtime metadata, choice bindings, and layout compatibility.
 
-## Plan before apply
+## Default AI publication workflow
+
+Use the authenticated production API for publishing. Do not simulate clicks in the human upload page and do not send a Supabase service-role key from the AI environment.
+
+The API is https://www.pocket-cosmos.com/api/ai/physics-bank/imports. The publisher token is read from PHYSICS_BANK_PUBLISH_TOKEN or ~/.codex/secrets/physics-bank-publisher.env. Keep it private and never print it.
+
+The script publish_via_api.py uploads the compiled JSON and image bytes directly to short-lived Supabase Storage upload links. The website API validates the bundle and image hashes, returns a database change plan, then commits all question versions and catalog updates atomically when --apply is supplied.
+
+Plan first:
+
+    python ~/.codex/skills/physics-bank/skills/physics-bank-web-publisher/scripts/publish_via_api.py <bank>/web-publish-bundle.json --bank-root <bank>
+
+Only use --apply after the user asked to publish:
+
+    python ~/.codex/skills/physics-bank/skills/physics-bank-web-publisher/scripts/publish_via_api.py <bank>/web-publish-bundle.json --bank-root <bank> --apply
+
+The plan-only command removes its temporary private manifest after returning the plan. It does not upload question images or write question records. The --apply command uploads images concurrently, verifies their bytes server-side, publishes in one transaction, and confirms that every question is at its current version.
+
+The endpoint is production-only. Preview content must continue through the administrator workflow so preview and production question data remain isolated.
+
+## Manual database fallback — only if the API is unavailable
+
+Prefer the production API above. Use the service-role database scripts below only for an explicitly requested manual recovery or while the API is unavailable.
 
 Default behavior is planning only. Do not write production merely because compilation succeeded.
 
@@ -175,13 +198,13 @@ A publish plan must state for every question:
 
 Content hashes deliberately exclude signed URLs, database UUIDs, and timestamps.
 
-## Asset upload
+### Manual asset upload
 
 Storage paths are immutable and content-addressed:
 
 ```text
 question-assets/
-  banks/<practice-set-id>/assets/<asset-id>-<sha12>.<ext>
+  banks/production/assets/<practice-set-id>/<asset-id>-<sha12>.<ext>
 ```
 
 Upload before DB mutation:
@@ -200,7 +223,7 @@ Never expose the service-role key to browser/client code or commit it to Git.
 
 Uploads use `x-upsert: false`. A changed file receives a new hash-derived path instead of overwriting CDN content.
 
-## Atomic DB apply
+### Manual atomic DB apply
 
 After every required asset upload succeeds, generate the transaction:
 
@@ -226,7 +249,7 @@ Do not retire questions missing from a new bundle unless the user explicitly req
 
 After apply:
 
-1. verify DB identities, expected content hashes, and asset rows:
+1. The API response must report allQuestionsCurrent=true and a question count matching the bundle. Only for a manual database fallback, verify DB identities, expected content hashes, and asset rows:
 
    ```bash
    python skills/physics-bank-web-publisher/scripts/verify_database.py \
@@ -248,8 +271,7 @@ After apply:
    - visual-choice question;
    - multi-figure question.
 
-For locked practice sets, a 403 from the public API is not evidence of failed publication. Verify via Supabase and repeat API/UI verification with an authenticated session if available.
-
+For locked practice sets, a 403 from the public API is not evidence of failed publication. Use the successful API response's database verification instead; do not request a Supabase service-role key in the AI environment.
 
 ### Required dual-surface verification
 

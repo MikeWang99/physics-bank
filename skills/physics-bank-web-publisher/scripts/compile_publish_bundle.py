@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import mimetypes
 import re
 import sys
 from pathlib import Path
@@ -17,7 +16,7 @@ from knowledge_taxonomy import load_knowledge_taxonomy
 from validate_knowledge_classification import validate_question as validate_knowledge_question
 
 SCHEMA = "pocket-cosmos-publish-bundle/v1"
-PUBLISHER_VERSION = "1.2.0-rc.1"
+PUBLISHER_VERSION = "1.2.0"
 ALLOWED_SYSTEMS = {
     "ap-physics-1", "ap-physics-2", "ap-c-mech", "ap-c-em",
     "igcse", "competition", "bpho", "a-level", "physics-bowl",
@@ -191,9 +190,37 @@ def specialty_tags(question: dict) -> list[str]:
     ])
 
 
+def answer_labels(question: dict) -> list[str]:
+    source = question.get("answer") if isinstance(question.get("answer"), dict) else {}
+    raw_label = str(source.get("label") or "").strip()
+    legacy_labels = [part.upper() for part in re.split(r"[,;\s/]+", raw_label) if part]
+    explicit = source.get("correct_labels")
+    has_explicit = explicit is not None
+    if has_explicit and not isinstance(explicit, list):
+        raise ValueError("answer.correct_labels must be an array of choice labels")
+    if has_explicit:
+        labels = [item.strip().upper() if isinstance(item, str) else "" for item in explicit]
+        if any(not item for item in labels):
+            raise ValueError("answer.correct_labels contains a blank or non-string label")
+    else:
+        labels = legacy_labels
+    if has_explicit and legacy_labels and sorted(labels) != sorted(legacy_labels):
+        raise ValueError("answer.label conflicts with answer.correct_labels")
+    if len(set(labels)) != len(labels):
+        raise ValueError("answer contains duplicate correct choice labels")
+    choices = question.get("choices") if isinstance(question.get("choices"), list) else []
+    choice_labels = {str(choice.get("label") or "").strip().upper() for choice in choices if isinstance(choice, dict)}
+    if has_explicit and labels and not choice_labels:
+        raise ValueError("answer.correct_labels requires answer choices")
+    if labels and choice_labels and any(label not in choice_labels for label in labels):
+        raise ValueError("answer contains a label that does not belong to a choice")
+    return labels
+
+
 def answer_payload(question: dict, mode: str, config: dict) -> tuple[dict, dict]:
     source = question.get("answer") if isinstance(question.get("answer"), dict) else {}
-    label = str(source.get("label") or "").strip() or None
+    labels = answer_labels(question)
+    label = ",".join(labels) or None
     text = str(source.get("text") or "").strip() or None
     evidence = str(source.get("evidence") or "").strip() or "not-provided"
 
@@ -227,16 +254,34 @@ def asset_descriptor(bank_root: Path, asset: dict, practice_set_id: str, storage
     if not local.is_file():
         raise ValueError(f"asset file not found: {rel}")
     sha = file_hash(local)
-    suffix = local.suffix.lower() or ".bin"
-    prefix = str(storage.get("prefix") or "banks").strip("/")
+    suffix = local.suffix.lower()
+    extensions = {
+        ".png": ("image/png", ".png"),
+        ".jpg": ("image/jpeg", ".jpg"),
+        ".jpeg": ("image/jpeg", ".jpg"),
+        ".webp": ("image/webp", ".webp"),
+    }
+    if suffix not in extensions:
+        raise ValueError(f"unsupported runtime image type: {rel}")
+    content_type, suffix = extensions[suffix]
+    prefix = str(storage.get("prefix") or "banks/production/assets").strip("/")
+    if prefix == "banks":
+        prefix = "banks/production/assets"
+    if prefix != "banks/production/assets":
+        raise ValueError("production API publishing requires storage.prefix=banks/production/assets")
     bucket = str(storage.get("bucket") or "question-assets")
+    if bucket != "question-assets":
+        raise ValueError("production API publishing requires the question-assets bucket")
     aid = str(asset.get("id") or "")
-    storage_path = f"{prefix}/{practice_set_id}/assets/{aid}-{sha[:12]}{suffix}"
-    content_type = mimetypes.guess_type(local.name)[0] or "application/octet-stream"
+    safe_aid = re.sub(r"[^a-z0-9]+", "-", aid.lower()).strip("-")
+    if not safe_aid:
+        raise ValueError(f"asset ID has no safe characters: {aid!r}")
+    storage_path = f"{prefix}/{practice_set_id}/{safe_aid}-{sha[:12]}{suffix}"
     return {
         "physicsBankAssetId": aid,
         "localFile": rel,
         "sha256": sha,
+        "size": local.stat().st_size,
         "contentType": content_type,
         "storageBucket": bucket,
         "storagePath": storage_path,

@@ -27,7 +27,7 @@ Example:
   },
   "storage": {
     "bucket": "question-assets",
-    "prefix": "banks"
+    "prefix": "banks/production/assets"
   },
   "answers": {
     "missing_mcq_nudge": "Select an option to record your response. The source bank does not include an answer key yet."
