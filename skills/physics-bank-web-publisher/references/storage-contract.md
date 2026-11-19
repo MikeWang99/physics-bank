@@ -12,13 +12,13 @@ v1.0 publishes question figures/choice images only to `question-assets`.
 ## Immutable content-addressed object path
 
 ```text
-banks/<practice-set-id>/assets/<asset-id>-<sha256-prefix>.<ext>
+banks/production/assets/<practice-set-id>/<asset-id>-<sha256-prefix>.<ext>
 ```
 
 Example:
 
 ```text
-banks/fma-competition-bank/assets/fma-2024-q017-choice-a-01-91c3d5f8e1af.png
+banks/production/assets/fma-competition-bank/fma-2024-q017-choice-a-01-91c3d5f8e1af.png
 ```
 
 Do not overwrite a changed file at the old path. Supabase recommends new object paths rather than overwriting CDN-cached assets.
@@ -27,23 +27,21 @@ Do not overwrite a changed file at the old path. Supabase recommends new object 
 
 1. compile + validate bundle;
 2. calculate/verify every asset SHA-256;
-3. upload all missing content-addressed objects with `x-upsert: false`;
-4. only after all uploads succeed, execute the database transaction.
+3. request time-limited upload links from the production API;
+4. upload the bundle and missing content-addressed objects directly to their signed URLs with HTTP `PUT` and `x-upsert: false`;
+5. only after all uploads succeed, ask the API to execute the database transaction.
 
 An upload failure must stop DB publication.
 
 ## Credentials
 
-Server-side only:
+The AI publisher token is stored outside the repository in ~/.codex/secrets/physics-bank-publisher.env. PHYSICS_BANK_PUBLISH_TOKEN may override that file for one process.
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-Never put the service-role key into Next.js client bundles, public env vars, logs, Git, or generated metadata.
+The website's SUPABASE_SERVICE_ROLE_KEY remains server-side. The publisher script never reads or sends that database key.
 
 ## Database mutation sequence
 
-Database rows are applied in one transaction after storage succeeds.
+The production API applies database rows in one transaction after storage succeeds.
 
 Historical `question_versions` are immutable.
 
