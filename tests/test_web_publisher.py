@@ -183,7 +183,7 @@ class WebPublisherTests(unittest.TestCase):
             two = COMPILE.compile_bank(root, config())
             a = one["questions"][0]["assets"][0]
             self.assertIn(a["sha256"][:12], a["storagePath"])
-            self.assertTrue(a["storagePath"].startswith("banks/fma-demo/assets/"))
+            self.assertTrue(a["storagePath"].startswith("banks/production/assets/fma-demo/"))
             self.assertEqual(one["questions"][0]["version"]["contentHash"], two["questions"][0]["version"]["contentHash"])
 
     def test_interleaved_layout_is_blocked_by_default(self):
